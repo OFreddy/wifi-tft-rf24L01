@@ -1,0 +1,22 @@
+{
+    "name": "hm_comm",
+    "keywords": "solar, inverter",
+    "description": "A simple library for communicating with Hoymiles solar inverters",
+    "authors": {
+        "name": "OFreddy"
+    },
+    "version": "0.0.1",
+    "frameworks": "arduino",
+    "platforms": [
+		"espressif8266",
+        "espressif32"
+    ],
+    "dependencies": [
+        {
+            "owner": "nrf24",
+            "name": "RF24",
+            "version": ">=1.4.2",
+			"platforms": ["espressif8266", "espressif32"]
+        }
+    ]
+}

@@ -1,68 +1,84 @@
 #if defined(ESP32) && defined(F)
-  #undef F
-  #define F(sl) (sl)
+#undef F
+#define F(sl) (sl)
 #endif
 
 #include "web.h"
 
-#include "html/h/index_html.h"
-#include "html/h/style_css.h"
+// Web page contents
+#include "style_css.h"
 #include "favicon.h"
-#include "html/h/setup_html.h"
+#include "index_html.h"
+#include "config_html.h"
+
+#include "config_x.h"
+#include "config.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-web::web(app *main, char version[]) {
-    mMain    = main;
+web::web(app *main, char version[])
+{
+    mMain = main;
     mVersion = version;
-    #ifdef ESP8266
-        mWeb     = new ESP8266WebServer(80);
-        mUpdater = new ESP8266HTTPUpdateServer();
-    #elif defined(ESP32)
-        mWeb     = new WebServer(80);
-        mUpdater = new HTTPUpdateServer();
-    #endif
-    mUpdater->setup(mWeb);
+#ifdef ESP8266
+    mWebServer = new ESP8266WebServer(80);
+    mUpdater = new ESP8266HTTPUpdateServer();
+#elif defined(ESP32)
+    mWeb = new WebServer(80);
+    mUpdater = new HTTPUpdateServer();
+#endif
+    mUpdater->setup(mWebServer);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void web::setup(void) {
+void web::setup(void)
+{
+    // Wifi configuration
+    mConfigWifi = new WebConfig();
+    DBG_PRINTF(DBG_PSTR("web::setup wifiCfg->setDescription\n"));
+    mConfigWifi->setCfgName(PSTR("WiFi Settings"));
+    mConfigWifi->setDescription(paramsWifi);
+    DBG_PRINTF(DBG_PSTR("web::setup wifiCfg->readConfig\n"));
+    mConfigWifi->readConfig(CONFFILENAMEWIFI);
+    DBG_PRINTF(DBG_PSTR("web::setup finished\n"));
 
-    mWeb->begin();
+    mWebServer->on("/", std::bind(&web::showIndex, this));
+    mWebServer->on("/index", std::bind(&web::showIndex, this));
+    mWebServer->on("/style.css", std::bind(&web::showCss, this));
+    mWebServer->on("/favicon.ico", std::bind(&web::showFavicon, this));
+    mWebServer->onNotFound(std::bind(&web::showNotFound, this));
+    mWebServer->on("/cfg", std::bind(&web::showConfig, this));
+    mWebServer->on("/cfgwifi", std::bind(&web::showWifiCfg, this));
+    mWebServer->on("/uptime", std::bind(&web::showUptime, this));
+    mWebServer->on("/time", std::bind(&web::showTime, this));
+    mWebServer->on("/cmdstat", std::bind(&web::showStatistics, this));
 
-    mWeb->on("/",               std::bind(&web::showIndex,         this));
-    mWeb->on("/style.css",      std::bind(&web::showCss,           this));
-    mWeb->on("/favicon.ico",    std::bind(&web::showFavicon,       this));
-    mWeb->onNotFound (          std::bind(&web::showNotFound,      this));
-    mWeb->on("/uptime",         std::bind(&web::showUptime,        this));
-    mWeb->on("/time",           std::bind(&web::showTime,          this));
-    mWeb->on("/cmdstat",        std::bind(&web::showStatistics,    this));
+    mWebServer->begin();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void web::loop(void) {
-    mWeb->handleClient();
+void web::loop(void)
+{
+    mWebServer->handleClient();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void web::showIndex(void) {
+void web::showIndex(void)
+{
     String html = FPSTR(index_html);
-    html.replace(F("{DEVICE}"), String("Ollis"));
     html.replace(F("{VERSION}"), mVersion);
-    html.replace(F("{TS}"), String(5) + " ");
-    html.replace(F("{JS_TS}"), String(5 * 1000));
-    html.replace(F("{BUILD}"), String(4711));
-    mWeb->send(200, "text/html", html);
+    html.replace(F("{GIT}"), AUTO_GIT_HASH);
+    mWebServer->send(200, "text/html", html);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void web::showCss(void)
 {
-    mWeb->send(200, "text/css", FPSTR(style_css));
+    mWebServer->send(200, "text/css", FPSTR(style_css));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,28 +87,58 @@ void web::showFavicon(void)
 {
     static const char favicon_type[] PROGMEM = "image/x-icon";
     static const char favicon_content[] PROGMEM = FAVICON_PANEL_16;
-    mWeb->send_P(200, favicon_type, favicon_content, sizeof(favicon_content));
+    mWebServer->send_P(200, favicon_type, favicon_content, sizeof(favicon_content));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void web::showNotFound(void)
 {
-    DBG_PRINTF(DBG_PSTR("app::showNotFound - %s"), mWeb->uri());
+    DBG_PRINTF(DBG_PSTR("web::showNotFound - %s"), mWebServer->uri());
     String msg = F("File Not Found\n\nURI: ");
-    msg += mWeb->uri();
+    msg += mWebServer->uri();
     msg += F("\nMethod: ");
-    msg += (mWeb->method() == HTTP_GET) ? "GET" : "POST";
+    msg += (mWebServer->method() == HTTP_GET) ? "GET" : "POST";
     msg += F("\nArguments: ");
-    msg += mWeb->args();
+    msg += mWebServer->args();
     msg += "\n";
 
-    for (uint8_t i = 0; i < mWeb->args(); i++)
+    for (uint8_t i = 0; i < mWebServer->args(); i++)
     {
-        msg += " " + mWeb->argName(i) + ": " + mWeb->arg(i) + "\n";
+        msg += " " + mWebServer->argName(i) + ": " + mWebServer->arg(i) + "\n";
     }
 
-    mWeb->send(404, F("text/plain"), msg);
+    mWebServer->send(404, F("text/plain"), msg);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void web::showConfig(void)
+{
+    String html = FPSTR(config_html);
+    html.replace(F("{VERSION}"), mVersion);
+    html.replace(F("{GIT}"), AUTO_GIT_HASH);
+    mWebServer->send(200, "text/html", html);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void web::showWifiCfg(void)
+{
+    DBG_PRINTF(DBG_PSTR("web::showWifiCfg"));
+    dumpReceivedArgs();
+    mConfigWifi->handleFormRequest(mWebServer);
+    if (mWebServer->hasArg(F("save")))
+    {
+        uint8_t cnt = mConfigWifi->getCount();
+        DBG_PRINTF(DBG_PSTR("*********** Wifi Konfiguration ************\n"));
+        for (uint8_t i = 0; i < cnt; i++)
+        {
+            Serial.print(mConfigWifi->getName(i));
+            Serial.print(" = ");
+            Serial.println(mConfigWifi->values[i]);
+        }
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +156,7 @@ void web::showUptime(void)
 
     snprintf(time, 20, "%d Tage, %02d:%02d:%02d", upTimeDy, upTimeHr, upTimeMn, upTimeSc);
 
-    mWeb->send(200, "text/plain", String(time));
+    mWebServer->send(200, "text/plain", String(time));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -121,19 +167,40 @@ void web::showTime(void)
     time_t now = time(nullptr);
     struct tm *timeinfo = localtime(&now);
 
-    //String datetime = WDAY_NAMES[timeinfo->tm_wday] + " " + String(timeinfo->tm_mday) + " " + MONTH_NAMES[timeinfo->tm_mon] + " " + String(1900 + timeinfo->tm_year);
+    // String datetime = WDAY_NAMES[timeinfo->tm_wday] + " " + String(timeinfo->tm_mday) + " " + MONTH_NAMES[timeinfo->tm_mon] + " " + String(1900 + timeinfo->tm_year);
     String datetime = String("olliDay");
 
     sprintf(time_str, "%02d:%02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec); // hh:mm:ss
 
     datetime += String(", ") + String(time_str);
 
-    mWeb->send(200, "text/plain", datetime.c_str());
+    mWebServer->send(200, "text/plain", datetime.c_str());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void web::showStatistics(void) 
+void web::showStatistics(void)
 {
-    mWeb->send(200, F("text/plain"), String("Statistics"));
+    mWebServer->send(200, F("text/plain"), String("Statistics"));
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void web::dumpReceivedArgs(void)
+{
+    String args = "ArgCnt: ";
+    args += mWebServer->args();
+
+    for (int i = 0; i < mWebServer->args(); i++)
+    {
+        args += "Arg " + (String)i + " -> ";   // Include the current iteration value
+        args += mWebServer->argName(i) + ": "; // Get the name of the parameter
+        args += mWebServer->arg(i) + "\n";     // Get the value of the parameter
+    }
+
+    DBG_PRINTF(DBG_PSTR("%s"), args.c_str());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// End of file
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

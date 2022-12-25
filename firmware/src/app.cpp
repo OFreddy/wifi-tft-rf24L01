@@ -14,43 +14,18 @@
 
 #include "ms_ticker.h"
 
-#include "html/h/index_html.h"
-#include "html/h/style_css.h"
-#include "html/h/setup_html.h"
-#include "favicon.h"
-
 #if defined(ENV_KER) || defined(ENV_STR)
 #include "hm_radio.h"
 #include "hm_inverter.h"
 extern HM_Radio hmRadio;
 #endif
 
+#include "config.h"
 #include "network.h"
 
 #include "_dbg.h"
+#include "version.h"
 #include "app.h"
-
-// Wifi configuration
-#define WIFI_HOST "ESP-TFT"
-#undef WIFI_SSID
-#undef WIFI_PASSWORD
-#if defined(ENV_FRI)
-#define WIFI_SSID "502 Bad Gateway"
-#define WIFI_PASSWORD "$ZuH$fe38mlW@"
-#elif defined(ENV_DEM)
-#define WIFI_SSID "WLAN-IT"
-#define WIFI_PASSWORD "ZuH$fe38mlW"
-#elif defined(ENV_KER)
-#define WIFI_SSID "WLAN-425964"
-#define WIFI_PASSWORD "29952014215769601896"
-//#define WIFI_SSID "502 Bad Gateway"
-//#define WIFI_PASSWORD "$ZuH$fe38mlW@"
-#elif defined(ENV_STR)
-//#define WIFI_SSID "STRICKER"
-//#define WIFI_PASSWORD "StRiCkEr1512"
-#define WIFI_SSID "502 Bad Gateway"
-#define WIFI_PASSWORD "$ZuH$fe38mlW@"
-#endif
 
 // HTTP Config
 #define HTTPSERVER_NAME "Solar2.fritz.box"
@@ -138,14 +113,44 @@ app::~app()
 
 void app::setup()
 {
-    DBG_PRINTF(DBG_PSTR("*** Application startup ***\r\n"));
+    DBG_PRINTF(DBG_PSTR("Application startup...\n"));
 
     HeapSelectDram ephemeral;
-    DBG_PRINTF(DBG_PSTR("IRAM free: %6d bytes\r\n"), ESP.getFreeHeap());
+    DBG_PRINTF(DBG_PSTR("IRAM free: %6d bytes\n"), ESP.getFreeHeap());
     {
         HeapSelectIram ephemeral;
-        DBG_PRINTF(DBG_PSTR("DRAM free: %6d bytes\r\n"), ESP.getFreeHeap());
+        DBG_PRINTF(DBG_PSTR("DRAM free: %6d bytes\n"), ESP.getFreeHeap());
     }
+
+    // File system and configuration
+    DBG_PRINTF(DBG_PSTR("Initialize Filesystem...\n"));
+    bool fsinit = false;
+#ifdef ARDUINO_ARCH_ESP32
+    fsinit = LittleFS.begin(false);
+#else
+    fsinit = LittleFS.begin();
+#endif
+    if (!fsinit)
+    { // Do not format if mount failed
+        DBG_PRINTF(DBG_PSTR("Filesystem failed!"));
+
+#ifdef ARDUINO_ARCH_ESP32
+        if (!LittleFS.begin(true))
+        {
+            DBG_PRINTF(DBG_PSTR("success!");
+        }
+        else
+        {
+            Serial.print("failed");
+        }
+#endif
+    }
+    else
+    {
+        Serial.println(F("done"));
+    }
+    DBG_PRINTF(DBG_PSTR("Loading settings...\n"));
+    ConfigInst.read();
 
     // Network instance
     NetworkInst.setup();
@@ -160,13 +165,13 @@ void app::setup()
     digitalWrite(LCD_PWR_PIN, HIGH); // power on
 #endif
 
-    DBG_PRINTF(DBG_PSTR("Heap before Web server: %6d bytes\r\n"), ESP.getFreeHeap());
+    DBG_PRINTF(DBG_PSTR("Heap before Web server: %6d bytes\n"), ESP.getFreeHeap());
 
     // Web server
     mWebInst = new web(this, mVersion);
     mWebInst->setup();
 
-    DBG_PRINTF(DBG_PSTR("Heap before TFT display: %6d bytes\r\n"), ESP.getFreeHeap());
+    DBG_PRINTF(DBG_PSTR("Heap before TFT display: %6d bytes\n"), ESP.getFreeHeap());
 
     // TFT Display
     displayOn = displayState = true;
@@ -176,14 +181,14 @@ void app::setup()
     gfx->setRotation(3);
     gfx->fillBuffer(0);
 
-    DBG_PRINTF(DBG_PSTR("Heap before HTTPReq server: %6d bytes\r\n"), ESP.getFreeHeap());
+    DBG_PRINTF(DBG_PSTR("Heap before HTTPReq server: %6d bytes\n"), ESP.getFreeHeap());
 
     // http client
     mHttpReq = new AsyncHTTPRequest();
     mHttpReq->setDebug(DEBUG_HTTP_REQ);
     mHttpReq->onReadyStateChange(httpRequestCb, this);
 
-    DBG_PRINTF(DBG_PSTR("Heap after HTTPReq server: %6d bytes\r\n"), ESP.getFreeHeap());
+    DBG_PRINTF(DBG_PSTR("Heap after HTTPReq server: %6d bytes\n"), ESP.getFreeHeap());
 
     // Sunset / dawn calculation
     st.setup(LATITUDE, LONGITUDE, TIMEZONE, TIME_GMT_OFFSET_S, TIME_DST_OFFSET_S, TIMESERVER_NAME);
@@ -193,7 +198,7 @@ void app::setup()
     mUptimeTicker->attach(1, [this]()
                           { this->cyclicTick(); });
 
-    DBG_PRINTF(DBG_PSTR("!!! Setup finished !!!\r\n"), hostname);
+    DBG_PRINTF(DBG_PSTR("!!! Setup finished !!!\n"), hostname);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,26 +217,7 @@ void app::loop(bool bDisableUpdate)
     // Web server
     mWebInst->loop();
 
-    // if WiFi is down, try reconnecting
-    // if (WiFi.status() != WL_CONNECTED)
-    // {
-    //     displayOn = true;
-    //     displayDelay = millis() + 10000;
-    //     if (currentMillis >= reconnectProgressMillis)
-    //     {
-    //         if (wifiConnectProgress > 80)
-    //             wifiConnectProgress = 0;
-    //         else
-    //             wifiConnectProgress += 10;
-    //         //drawProgress(wifiConnectProgress, "Connecting to '" + String(WIFI_SSID) + "'");
-    //         reconnectProgressMillis = currentMillis + 500;
-    //     }
-    //     return;
-    // }
-
-
-
-    if (WiFi.status() == WL_CONNECTED)
+    if (NetworkInst.IsConnected())
     {
         if (checkTicker(&mHttpReqTicker, mHttpReqInterval))
         {
@@ -375,13 +361,13 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
     {
         String httpResponse = request->responseText();
 
-        DBG_PRINTF(DBG_PSTR("\r\n%08i **ReadyStateDone %i\r\n"), millis(), request->responseHTTPcode());
+        DBG_PRINTF(DBG_PSTR("\n%08i **ReadyStateDone %i\n"), millis(), request->responseHTTPcode());
 
         if (request->responseHTTPcode() == -4 || request->responseHTTPcode() == -5)
         {
-            if (WiFi.status() == WL_CONNECTED)
+            if (NetworkInst.IsConnected())
             {
-                //retriggerTicker(&inst->mHttpReqTicker, 1000);
+                // retriggerTicker(&inst->mHttpReqTicker, 1000);
             }
         }
 
@@ -390,16 +376,16 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
         if (httpResponse.length() == 0)
         {
-            DBG_PRINTF(DBG_PSTR("\r\n%08i Http received empty response\r\n"), millis());
+            DBG_PRINTF(DBG_PSTR("\n%08i Http received empty response\n"), millis());
             // inst->getHttpData();
             return;
         }
 
         retriggerTicker(&inst->mHttpReqTicker, inst->mHttpReqInterval);
 
-        DBG_PRINTF(DBG_PSTR("\r\n%08i **************************************\r\n"), millis());
+        DBG_PRINTF(DBG_PSTR("\n%08i **************************************\n"), millis());
         DBG_PRINTF(httpResponse.c_str());
-        DBG_PRINTF(DBG_PSTR("\r\n**************************************\r\n"));
+        DBG_PRINTF(DBG_PSTR("\n**************************************\n"));
 
 #if defined(ENV_FRI)
         // see https://arduinojson.org/v6/assistant/#/step1
@@ -412,7 +398,7 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
         if (error)
         {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\r\n"), error.c_str());
+            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
             return;
         }
 
@@ -436,7 +422,7 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
         if (error)
         {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\r\n"), error.c_str());
+            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
             return;
         }
 
@@ -462,7 +448,7 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
         if (error)
         {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\r\n"), error.c_str());
+            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
             return;
         }
 
@@ -470,7 +456,7 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
         JsonObject StatusSNS_ENERGY = jsonDoc["StatusSNS"]["STROM"];
         // const char *StatusSNS_ENERGY_TotalStartTime = StatusSNS_ENERGY["TotalStartTime"];
-        inst->StatusSNS_ENERGY_Total = StatusSNS_ENERGY["Total_in"];         // 0.687
+        inst->StatusSNS_ENERGY_Total = StatusSNS_ENERGY["Total_in"]; // 0.687
 #endif
 
         inst->lastHttpResponse = millis();
@@ -481,16 +467,16 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
 
 void app::getHttpData(void)
 {
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Beispiele für URLs:
-//   Über Internet auf offenen Port der Restful API Daten senden:
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Beispiele für URLs:
+    //   Über Internet auf offenen Port der Restful API Daten senden:
 
 #if defined(ENV_KER)
     // Do nothing here
     return;
     // "https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?javascript.0.solarnb_power=777.7"
     // String serverPath = "https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?";
-    String serverPath = "http://of22.acedns.org:46879/setBulk?prettyPrint&user=restapi&pass=gH$4pQV7&";    
+    String serverPath = "http://of22.acedns.org:46879/setBulk?prettyPrint&user=restapi&pass=gH$4pQV7&";
     serverPath += "javascript.0.solarnb_power=";
     HM_Inverter<float> *inv = hmPackets.GetInverterInstance(0);
     float f = inv->getValue(inv->getPosByChFld(CH0, FLD_PAC));
@@ -526,18 +512,18 @@ void app::getHttpData(void)
         if (requestOpenResult)
         {
             // Only send() if open() returns true, or crash
-            DBG_PRINTF(DBG_PSTR("%08i Sending Http request...\r\n"), millis());
+            DBG_PRINTF(DBG_PSTR("%08i Sending Http request...\n"), millis());
             mHttpReq->send();
         }
         else
         {
-            DBG_PRINTF(DBG_PSTR("Can't send bad request\r\n"));
+            DBG_PRINTF(DBG_PSTR("Can't send bad request\n"));
             DBG_PRINTF(serverPath.c_str());
         }
     }
     else
     {
-        (DBG_PSTR("Can't send request\r\n"));
+        (DBG_PSTR("Can't send request\n"));
     }
 }
 
@@ -549,29 +535,9 @@ void app::processHttpData(AsyncHTTPRequest *request)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// converts the dBm to a range between 0 and 100%
-int8_t app::getWifiQuality(void)
-{
-    int32_t dbm = WiFi.RSSI();
-    if ((dbm <= -100) || !WiFi.isConnected())
-    {
-        return 0;
-    }
-    else if (dbm >= -50)
-    {
-        return 100;
-    }
-    else
-    {
-        return 2 * (dbm + 100);
-    }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void app::drawWifiQuality(void)
 {
-    int8_t quality = getWifiQuality();
+    int8_t quality = NetworkInst.GetWifiQuality();
 
     gfx->setColor(MINI_WHITE);
     gfx->setFont(ArialMT_Plain_10);

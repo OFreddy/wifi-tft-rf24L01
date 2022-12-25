@@ -1,5 +1,6 @@
-#include "TimeoutHelper.h"
 #include <Arduino.h>
+
+#include "TimeoutHelper.h"
 
 TimeoutHelper::TimeoutHelper()
 {

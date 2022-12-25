@@ -35,7 +35,6 @@ HM_Radio hmRadio(&radio);
 //#define INV2_SERIAL ((uint64_t)0x114173105307ULL) // 114173104439 = Gartenhütte STR 2
 #endif
 
-
 static IRAM_ATTR void handleNrf1Irq()
 {
 	hmRadio.RadioIrqCallback();
@@ -49,34 +48,44 @@ static void DumpConfig()
 	Serial.println("");
 }
 
+static void DumpMenu()
+{
+	Serial.println("Console menu");
+	Serial.println("============\n");
+	Serial.println("c = Print RF24 module config");
+	Serial.println("r = Reset module");
+	Serial.println("t = Toggle RF24 traffic debug output");
+}
+
 static void activateConf(void)
 {
- 	// Attach interrupt handler to NRF IRQ output. Overwrites any earlier handler.
+	// Attach interrupt handler to NRF IRQ output. Overwrites any earlier handler.
 	attachInterrupt(digitalPinToInterrupt(RF1_IRQ_PIN), handleNrf1Irq, FALLING); // NRF24 Irq pin is active low.
 
 	DumpConfig();
 }
-#endif 
+#endif
 
 //-----------------------------------------------------------------------------
 // ICACHE_RAM_ATTR void handleIntr(void) {
-    
+
 // }
 
 //-----------------------------------------------------------------------------
-void setup() {
-    Serial.begin(115200);
-    Serial.printf_P(PSTR("\r\n\r\nWifiDisplay\r\n"));
+void setup()
+{
+	Serial.begin(SERIAL_BAUDRATE);
+	Serial.printf_P(PSTR("\n\n------------------------------------------\nWifiDisplay starting...\n"));
 
-    myApp.setup();
+	myApp.setup();
 
 #if defined(ENV_KER) || defined(ENV_STR)
-  	// Configure nRF IRQ input
+	// Configure nRF IRQ input
 	pinMode(RF1_IRQ_PIN, INPUT);
 
 	// Add inverter instances - check HM_MAXINVERTERINSTANCES in hm_config.h
 	bool res = hmRadio.AddInverterInstance(INV1_SERIAL);
-#if defined(ENV_STR)	
+#if defined(ENV_STR)
 	res = hmRadio.AddInverterInstance(INV2_SERIAL);
 #endif
 	if (!res)
@@ -91,17 +100,17 @@ void setup() {
 		while (1)
 			;
 	}
-    activateConf();
+	activateConf();
 #endif
 }
 
-
 //-----------------------------------------------------------------------------
-void loop() {
+void loop()
+{
 	static bool bHMTransmitting = false;
 	static bool bDumpRFData = false;
 
-    myApp.loop(bHMTransmitting);
+	myApp.loop(bHMTransmitting);
 
 #if defined(ENV_KER) || defined(ENV_STR)
 	// Cyclic communication processing
@@ -113,25 +122,34 @@ void loop() {
 	{
 		uint8_t cmd = Serial.read();
 
-		if (cmd == 'c')
+		if (cmd == '?')
+		{
+			DumpMenu();
+		}
+		else if (cmd == 'c')
 		{
 			DumpConfig();
 		}
-
-		if (cmd == 'r')
+		else if (cmd == 'r')
+		{
+			DBG_PRINTF(DBG_PSTR("Resetting..."));
+			delay(200);
+			ESP.reset();
+		}
+		else if (cmd == 't')
 		{
 			bDumpRFData = !bDumpRFData;
 			hmRadio.DumpRFData(bDumpRFData);
 		}
 	}
-#endif    
+#endif
 
-//    digitalWrite(LED_BUILTIN, LOW);
- //   delay(500);
-   // digitalWrite(LED_BUILTIN, HIGH);
-   // delay(500);
+	//    digitalWrite(LED_BUILTIN, LOW);
+	//   delay(500);
+	// digitalWrite(LED_BUILTIN, HIGH);
+	// delay(500);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// End of file 
+/// End of file
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

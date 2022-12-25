@@ -469,34 +469,36 @@ bool HM_Radio::StateMachine(void)
 		}
 		else
 		{
-			HM_PRINTF(HM_PSTR("RCV period end %04X %u\n"), inverter[curInvInst].payloadFrameFlag, inverter[curInvInst].rcvRetryToChannelSwitch);
+			if (dumpRFData)
+				HM_PRINTF(HM_PSTR("RCV period end %04X %u\n"), inverter[curInvInst].payloadFrameFlag, inverter[curInvInst].rcvRetryToChannelSwitch);
 			if ((inverter[curInvInst].payloadFrameFlag == 0) && (++inverter[curInvInst].rcvRetryToChannelSwitch >= 3))
 			{
 				inverter[curInvInst].rcvRetryToChannelSwitch = 0;
 				IncrementChannel(&inverter[curInvInst].activeSndChannel);
-				HM_PRINTF(HM_PSTR("Channel switch to %u\n"), inverter[curInvInst].activeSndChannel);
+				if (dumpRFData)
+					HM_PRINTF(HM_PSTR("Channel switch to %u\n"), inverter[curInvInst].activeSndChannel);
 			}
-#if defined(ENV_KER)			
+#if defined(ENV_KER)
 			if ((inverter[curInvInst].payloadFrameFlag & 0x000F) == 0x000F)
 #endif
-#if defined(ENV_STR)			
-			if ((inverter[curInvInst].payloadFrameFlag & 0x0007) == 0x0007)
+#if defined(ENV_STR)
+				if ((inverter[curInvInst].payloadFrameFlag & 0x0007) == 0x0007)
 #endif
-			{ // All frames received
-				inverter[curInvInst].lastPayloadRcvTime = epochTime;
-				eState = HM_State_Calculate;
-			}
-			else
-			{
-				if (++inverter[curInvInst].retries < 3)
-				{
-					eState = HM_State_Send;
+				{ // All frames received
+					inverter[curInvInst].lastPayloadRcvTime = epochTime;
+					eState = HM_State_Calculate;
 				}
 				else
 				{
-					eState = HM_State_CycleEnd;
+					if (++inverter[curInvInst].retries < 3)
+					{
+						eState = HM_State_Send;
+					}
+					else
+					{
+						eState = HM_State_CycleEnd;
+					}
 				}
-			}
 		}
 		break;
 
@@ -546,27 +548,29 @@ void HM_Radio::PreparePacket(void)
 
 void HM_Radio::SendPacket(void)
 {
+
+	if (dumpRFData)
+	{
+		// Debugging output
+		HM_PRINTF(HM_PSTR("=>|%02u|"), inverter[curInvInst].activeSndChannel);
+		dumpMillis(HM_GETTICKCOUNT);
+		dumpMillis(HM_GETTICKCOUNT - lastDump);
+		lastDump = HM_GETTICKCOUNT;
+
+		HM_PRINTF(HM_PSTR("00|%02u|%08lX01|"), inverter[curInvInst].activeSndChannel, inverter[curInvInst].rfAddress.u64);
+		HM_PRINTF(HM_PSTR("    |  | |%02x|"), sendBuffer[0]);
+		dumpData(&sendBuffer[1], 4);
+		dumpData(&sendBuffer[5], 4);
+		dumpData(&sendBuffer[9], sendBytes - 9);
+		HM_PRINTF(HM_PSTR("\r\n"));
+
+		// Overwrite send dump output
+		sendLineLF = false;
+	}
+
 	HM_DISABLE_EINT;
 	_rf24Radio->stopListening();
-
-	// Debugging output
-	HM_PRINTF(HM_PSTR("=>|%02u|"), inverter[curInvInst].activeSndChannel);
-	dumpMillis(HM_GETTICKCOUNT);
-	dumpMillis(HM_GETTICKCOUNT - lastDump);
-	lastDump = HM_GETTICKCOUNT;
-
-	HM_PRINTF(HM_PSTR("00|%02u|%08lX01|"), inverter[curInvInst].activeSndChannel, inverter[curInvInst].rfAddress.u64);
-	HM_PRINTF(HM_PSTR("    |  | |%02x|"), sendBuffer[0]);
-	dumpData(&sendBuffer[1], 4);
-	dumpData(&sendBuffer[5], 4);
-	dumpData(&sendBuffer[9], sendBytes - 9);
-	HM_PRINTF(HM_PSTR("\r\n"));
-
-	// Overwrite send dump output
-	sendLineLF = false;
-
 	_rf24Radio->setChannel(inverter[curInvInst].activeSndChannel);
-	// rf24Radio.openWritingPipe(inverter[curInvInst].rfAddress.u64);
 	_rf24Radio->openWritingPipe(((inverter[curInvInst].rfAddress.u64 & 0XFFFFFFFF) << 8) | 0x01);
 	_rf24Radio->setCRCLength(RF24_CRC_16);
 	_rf24Radio->enableDynamicPayloads();
@@ -721,7 +725,8 @@ void HM_Radio::ProcessPacket(void)
 							}
 							else
 							{
-								HM_PRINTF(HM_PSTR("|*PID_MISM"));
+								if (dumpRFData)
+									HM_PRINTF(HM_PSTR("|*PID_MISM"));
 							}
 						}
 						else if (p.packet[2] == (HM_PACKETTYPE_DEVCONTROL | HM_PACKETTYPE_RESPONSE))
@@ -730,7 +735,8 @@ void HM_Radio::ProcessPacket(void)
 						}
 						else
 						{
-							HM_PRINTF(HM_PSTR("|*PID_UNKN"));
+							if (dumpRFData)
+								HM_PRINTF(HM_PSTR("|*PID_UNKN"));
 						}
 					}
 					else

@@ -17,8 +17,24 @@
  *
 \*****************************************************************************************************/
 
+#define SERIAL_BAUDRATE   115200 // UART Debuggging console baudrate
+
 #define CFG_MGCNUMBER     0x2225 // Change this value to load SECTION1 configuration parameters to flash
-#define CGF_VERSION       0x0101 // Conbfiguration set version
+#define CGF_VERSION       0x0101 // Configuration set version
+
+#define WIFI_AP_ACTIVE_TIME   60 // Period for which ESP will remain in AP mode in case of STA connect error
+
+#define WIFI_SOFT_AP_CHANNEL   1 // Soft Access Point Channel number between 1 and 13 
+
+#define WIFI_SOFT_AP_DNS_PORT 53 // Soft Access Point DNS port number
+
+// Access Point Info
+// In case there is no WiFi Network or Ahoy can not connect to it, it will act as an Access Point
+
+#define WIFI_AP_SSID      "WiFiTFT24"
+#define WIFI_AP_PWD       "wifitft24"
+
+#define APP_HOSTNAME      "WiFiTFT-%06X"
 
 #define STA_SSID1         "YourSSID1"         
 #define STA_PASS1         "YourWifiPassword1"     
@@ -32,7 +48,7 @@
 
 #define TIME_GMT_OFFSET_S 3600     // The GMT offset in seconds for your location
 
-#define TIME_DST_OFFSET_S 3600     // The DST offset in seconds dfor your location
+#define TIME_DST_OFFSET_S 3600     // The DST offset in seconds for your location
 
 #define LATITUDE          53.2197  // [Latitude] Your location to be used with sunrise and sunset
 #define LONGITUDE         7.98004  // [Longitude] Your location to be used with sunrise and sunset

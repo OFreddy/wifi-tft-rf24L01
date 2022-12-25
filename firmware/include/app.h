@@ -116,7 +116,6 @@ private:
     void processHttpData(AsyncHTTPRequest *request);
 
     // Support functions
-    int8_t getWifiQuality(void);
     void controlDisplay(void);
     void formatEng(char *dest, float val);
 

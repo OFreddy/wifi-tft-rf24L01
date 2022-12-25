@@ -1,7 +1,6 @@
-
 /*
  Copyright (C)
-	2022            OFreddy
+    2022            OFreddy
 
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
@@ -22,13 +21,27 @@
 #include <ESP8266HTTPUpdateServer.h>
 #endif
 
+#include <WiFiUdp.h>
+#include <DNSServer.h>
+
 enum NetworkState_E
 {
     eNetworkStateInit,
-    eNetworkstateConnect,
-    eNetworkstateConnected,
-    eNetworkstateDisconnected,
+    eNetworkstateSTAConnect,
+    eNetworkstateSTAConnected,
+    eNetworkstateSTADisconnected,
+    eNetworkstateAP,
+    eNetworkstateNext,
 };
+
+enum NetworkConfig_E : int8_t
+{
+    eNetworkConfigUse1,
+    eNetworkConfigUse2,
+    eNetworkConfigAP,
+    eNetworkConfigIll
+};
+
 
 class NetworkClass
 {
@@ -39,21 +52,42 @@ public:
     void setup();
     void loop();
 
-private:
-    String hostname;
+    bool IsConnected(void);
+    int8_t GetWifiQuality(void);
+    String GetHostname(void);
 
+private:
+    bool mApActive = false;
+    bool mWifiSet1Valid = false;
+    bool mWifiSet2Valid = false;
+
+    // Access point mode
+    DNSServer *mDnsServer;
+    WiFiUDP *mUdp;
+
+    // Channel mode
+    String mSTA_SSIDName;
+    String mSTA_Pass;
+    String hostname;
+    wl_status_t mOldWifiStatus;
+
+    NetworkConfig_E networkConfig;
     NetworkState_E networkState;
-    TimeoutHelper connecTimeout;
+    TimeoutHelper connectTimeout;
 
     void statemachine();
+    void chooseconfig();
+
+    void WifiBeginSTA(void);
+    void WifiBeginAP(const char *ssid, const char *pwd);
 
     void WifiSetMode(WiFiMode_t wifi_mode);
-    void WifiSetSleepMode(WiFiMode_t wifi_mode);
+    void WifiSetSleepMode(void);
     void WifiSetOutputPower(void);
 };
 
 extern NetworkClass NetworkInst;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// End of file 
+/// End of file
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

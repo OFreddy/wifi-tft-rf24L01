@@ -1,27 +1,70 @@
 h1 {
     margin: 0;
     padding: 20pt;
-    font-size: 22pt;
+    font-size: 16pt;
     color: #fff;
     background-color: #006ec0;
     display: block;
     text-transform: uppercase;
+    text-align: center;
 }
 
 html, body {
-    font-family: Arial;
-    margin: 0;
-    padding: 0;
+	text-align: center;
+	font-family: verdana, sans-serif;
+	background: #252525;
 }
-
+		
 p {
     text-align: justify;
     font-size: 13pt;
 }
 
+.cfgparm {
+    font-size: 13pt;
+    margin: 10px;
+    text-align: justify;
+}
+
+button {
+	border: 0;
+	border-radius: 0.3rem;
+	background: #1fa3ec;
+	color: #faffff;
+	line-height: 2.4rem;
+	font-size: 1.2rem;
+	width: 100%;
+	-webkit-transition-duration: 0.4s;
+	transition-duration: 0.4s;
+	cursor: pointer;
+}
+
+.middlediv{
+	text-align:left;
+	display:inline-block;
+	color:#eaeaea;
+	min-width:340px;
+}
+
+.navbutton {
+display: block;
+}
+
+.navbuttonred {
+    display: block;
+    background-color: red;
+    }
+    
+.footer {
+    font-size: 8pt;
+    color: #999;
+    text-align: right;
+}
+
 p.lic, p.lic a {
     font-size: 8pt;
     color: #999;
+    text-align: right;
 }
 
 .des {
@@ -144,10 +187,10 @@ input.cb {
 
 label {
     width: 20%;
-    display: inline-block;
     font-size: 12pt;
+    font-weight: bold;
     padding-right: 10px;
-    margin: 10px 0px 0px 15px;
+    margin: 0px 0px 0px 1px;
     vertical-align: top;
 }
 

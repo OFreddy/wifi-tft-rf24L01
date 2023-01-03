@@ -2,11 +2,14 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset='utf-8'>
     <meta http-equiv="Content-Type" content="text/html">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restart</title>
+    <script>
+        setTimeout(function () { location.href = '.'; }, 10000); 
+    </script>
     <link rel="stylesheet" type="text/css" href="style.css" />
-    <title>WiFi Display</title>
 </head>
 
 <body>
@@ -16,20 +19,17 @@
     </noscript>
 
     <div class="middlediv">
-        <h1>WiFI Display</h1>
-        <p>
-        <form class="navbuton" action="live" method="get"><button>Live view</button></form>
-        </p>
-        <p>
-        <form class="navbuton" action="cfg" method="get"><button>Settings</button></form>
-        </p>
-        <div class="footer">
+        <div style='text-align:center;'><b>{MSG}</b><br><br></div>
+        <div style='text-align:center;'>Device will be restarted</div>
+        <br>
+        <form class="navbutton" action="index" method="get"><button>Main</button></form>
+        <br>
+    <div class="footer">
             <hr>
             <a href="https://github.com/ofreddy" target="_blank">
                 Version {VERSION} Git #{GIT}
             </a>
         </div>
-
     </div>
 </body>
 

@@ -43,15 +43,17 @@
 #define STA_PASS2         "YourWifiPassword2"     
 
 #define TIMESERVER_NAME   "pool.ntp.org"
+#define TIMESERVER_PORT   123
 
-#define TIMEZONE          1        // Central European time +1
+#define NTP_TIMEZONEDESCR "Europe/Amsterdam"
 
-#define TIME_GMT_OFFSET_S 3600     // The GMT offset in seconds for your location
+#define SUNSET_ENABLED    true      // Enables sunset calculation
 
-#define TIME_DST_OFFSET_S 3600     // The DST offset in seconds for your location
+#define SUNSET_LATITUDE   "53.2197" // Latitude - Your location to be used with sunrise and sunset
+#define SUNSET_LONGITUDE  "7.98004" // Longitude - Your location to be used with sunrise and sunset
 
-#define LATITUDE          53.2197  // [Latitude] Your location to be used with sunrise and sunset
-#define LONGITUDE         7.98004  // [Longitude] Your location to be used with sunrise and sunset
+#define SUNSET_SUNRISEOFFSET -15    // Offset in minutes to be addded to calculated sunrise time
+#define SUNSET_SUNSETOFFSET 15      // Offset in minutes to be addded to calculated sunset time
 
 #if __has_include("user_config_override.h")
   #include "user_config_override.h"              // Configuration overrides for my_user_config.h

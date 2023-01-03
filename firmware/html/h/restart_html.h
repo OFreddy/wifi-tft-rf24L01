@@ -1,0 +1,5 @@
+#ifndef __RESTART_HTML_H__
+#define __RESTART_HTML_H__
+const char restart_html[] PROGMEM = "<!DOCTYPE html><html lang=\"en\"><head><meta charset='utf-8'><meta http-equiv=\"Content-Type\" content=\"text/html\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Restart</title><script>        setTimeout(function () { location.href = '.'; }, 10000);     </script><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" /></head><body><noscript><strong>Sorry but the Webinterface doesn't work properly without JavaScript enabled. Please enable it to            continue.</strong></noscript><div class=\"middlediv\"><div style='text-align:center;'><b>{MSG}</b><br><br></div><div style='text-align:center;'>Device will be restarted</div><br><form class=\"navbutton\" action=\"index\" method=\"get\"><button>Main</button></form><br><div class=\"footer\"><hr><a href=\"https://github.com/ofreddy\" target=\"_blank\">                Version {VERSION} Git #{GIT}            </a></div></div></body></html>";
+const uint32_t restart_html_len = 909;
+#endif /*__RESTART_HTML_H__*/

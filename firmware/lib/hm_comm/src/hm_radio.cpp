@@ -481,9 +481,12 @@ bool HM_Radio::StateMachine(void)
 #if defined(ENV_KER)
 			if ((inverter[curInvInst].payloadFrameFlag & 0x000F) == 0x000F)
 #endif
-#if defined(ENV_STR)
-				if ((inverter[curInvInst].payloadFrameFlag & 0x0007) == 0x0007)
+#if defined(ENV_STR) 
+			if ((inverter[curInvInst].payloadFrameFlag & 0x0007) == 0x0007)
 #endif
+#if defined(ENV_FRI) 
+			if ((inverter[curInvInst].payloadFrameFlag & 0x0007) == 0x0007)
+#endif				
 				{ // All frames received
 					inverter[curInvInst].lastPayloadRcvTime = epochTime;
 					eState = HM_State_Calculate;

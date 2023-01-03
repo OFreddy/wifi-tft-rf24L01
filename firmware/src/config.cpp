@@ -10,6 +10,8 @@
 #include "config.h"
 #include <string.h>
 #include <ArduinoJson.h>
+
+#include "ms_ticker.h"
 #include "_dbg.h"
 
 CONFIG_T config;
@@ -19,6 +21,29 @@ CONFIG_T config;
 void ConfigClass::init()
 {
     memset(&config, 0x00, sizeof(config));
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ConfigClass::loop()
+{
+    if (checkTicker(&secondTick, 1000))
+    {
+        if (restartCount > 0)
+        {
+            if ((restartCount--) == 1)
+            {
+                ESP.restart();
+            }
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void ConfigClass::requestRestart()
+{
+    restartCount = 2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +67,18 @@ bool ConfigClass::write()
     wifi["password1"] = config.WiFi_Password1;
     wifi["ssid2"] = config.WiFi_Ssid2;
     wifi["password2"] = config.WiFi_Password2;
+
+    JsonObject ntp = doc.createNestedObject("ntp");
+    ntp["server"] = config.Ntp_Server;
+    ntp["port"] = config.Ntp_Port;
+    ntp["timezone"] = config.Ntp_TimezoneDescr;
+
+    JsonObject sunset = doc.createNestedObject("sunset");
+    sunset["enabled"] = config.Sunset_Enabled;
+    sunset["latitude"] = config.Sunset_Latitude;
+    sunset["longitude"] = config.Sunset_Longitude;
+    sunset["sunrise_offset"] = config.Sunset_Sunriseoffset;
+    sunset["sunset_offset"] = config.Sunset_Sunsetoffset ;  
 
     // Serialize JSON to file
     if (serializeJson(doc, f) == 0)
@@ -79,6 +116,18 @@ bool ConfigClass::read()
     strlcpy(config.WiFi_Password2, wifi["password2"] | STA_PASS2, sizeof(config.WiFi_Password2));
     strlcpy(config.WiFi_Hostname, wifi["hostname"] | APP_HOSTNAME, sizeof(config.WiFi_Hostname));
 
+    JsonObject ntp = doc["ntp"];
+    strlcpy(config.Ntp_Server, ntp["server"] | TIMESERVER_NAME, sizeof(config.Ntp_Server));
+    config.Ntp_Port = ntp["port"] | TIMESERVER_PORT;
+    strlcpy(config.Ntp_TimezoneDescr, ntp["timezone"] | NTP_TIMEZONEDESCR, sizeof(config.Ntp_TimezoneDescr));
+
+    JsonObject sunset = doc["sunset"];
+    config.Sunset_Enabled = sunset["enabled"] | SUNSET_ENABLED;
+    strlcpy(config.Sunset_Latitude, sunset["latitude"] | SUNSET_LATITUDE, sizeof(config.Sunset_Latitude));
+    strlcpy(config.Sunset_Longitude, sunset["longitude"] | SUNSET_LONGITUDE, sizeof(config.Sunset_Longitude));
+    config.Sunset_Sunriseoffset = sunset["sunrise_offset"] | SUNSET_SUNRISEOFFSET;
+    config.Sunset_Sunsetoffset = sunset["sunset_offset"] | SUNSET_SUNSETOFFSET;    
+
     DBG_PRINTF(DBG_PSTR("SSID1: %s.\n"), config.WiFi_Ssid1);
     DBG_PRINTF(DBG_PSTR("SSID2: %s.\n"), config.WiFi_Ssid2);
 
@@ -101,6 +150,8 @@ CONFIG_T &ConfigClass::get()
     return config;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 String ConfigClass::load_from_file(String file_name)
 {
     String result = "";
@@ -119,6 +170,8 @@ String ConfigClass::load_from_file(String file_name)
     this_file.close();
     return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool ConfigClass::write_to_file(String file_name, String contents)
 {

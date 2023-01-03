@@ -10,11 +10,8 @@
 // Button
 #include <Bounce2.h>
 
-// NTP
-#include "suntime.h"
-//#include <WiFiUdp.h>
-//#include <TimeLib.h>
-//#include <sunset.h>
+// Sunset
+#include "SunsetClass.h"
 
 // TFT
 #include "MiniGrafx.h"   // General graphic library
@@ -50,13 +47,9 @@ private:
     unsigned long reconnectProgressMillis = 0;
     int wifiConnectProgress;
     wl_status_t oldWifiStatus = WL_IDLE_STATUS; // Wifi status indication
-    String escapedMac;
-    char hostname[33];
-    char serverDescription[33]; // Name of module
 
     // NTP Service, time and sunset
     time_t mTimestamp;
-    suntime st;
     Ticker *mUptimeTicker;
     uint16_t mUptimeInterval;
     uint32_t mUptimeSecs;
@@ -111,7 +104,6 @@ private:
 
     // Web services
     static void httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState);
-    void prepareHostname(char *pdest, const char *pname);
     void getHttpData(void);
     void processHttpData(AsyncHTTPRequest *request);
 

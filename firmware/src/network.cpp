@@ -103,6 +103,18 @@ int8_t NetworkClass::GetWifiQuality(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+NetworkState_E NetworkClass::GetNetworkState()
+{
+    return networkState;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String NetworkClass::GetStationSSID(void)
+{
+    return mSTA_SSIDName;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void NetworkClass::statemachine(void)
@@ -115,7 +127,8 @@ void NetworkClass::statemachine(void)
         if (!mApActive)
         {
             WifiBeginSTA();
-            connectTimeout.set(5000);
+
+            connectTimeout.set(10000);
             networkState = eNetworkstateSTAConnect;
         }
         else

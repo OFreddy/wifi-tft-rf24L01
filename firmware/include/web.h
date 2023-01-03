@@ -9,7 +9,6 @@
 #include <HTTPUpdateServer.h>
 #endif
 
-#include "webconfig.h"
 #include "app.h"
 
 class app;
@@ -29,9 +28,11 @@ public:
     void showNotFound(void);
     void showConfig(void);
     void showWifiCfg(void);
+    void showNtpCfg(void);
     void showUptime(void);
     void showTime(void);
     void showStatistics(void);
+    void showFile(void);
 
 private:
 #ifdef ESP8266
@@ -42,9 +43,9 @@ private:
     HTTPUpdateServer *mUpdater;
 #endif
 
-    WebConfig *mConfigWifi;
-
     void dumpReceivedArgs(void);
+    String fillStandardParms(String html);
+    bool getArg(const char* arg, char* out, size_t max);
 
     char *mVersion;
     app *mMain;

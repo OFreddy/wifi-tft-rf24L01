@@ -156,12 +156,13 @@ div.content {
 }
 
 input, select {
+    width: 95%;
     padding: 7px;
     font-size: 13pt;
 }
 
 input.text, select {
-    width: 70%;
+    width: 95%;
     box-sizing: border-box;
     margin-bottom: 10px;
     border: 1px solid #ccc;
@@ -182,7 +183,13 @@ input.btn {
 }
 
 input.cb {
+    width: 20%;
     margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    vertical-align: middle;
+    word-wrap: break-word;
 }
 
 label {
@@ -192,6 +199,7 @@ label {
     padding-right: 10px;
     margin: 0px 0px 0px 1px;
     vertical-align: top;
+    text-align: left;
 }
 
 fieldset {

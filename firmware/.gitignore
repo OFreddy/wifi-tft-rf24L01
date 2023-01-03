@@ -11,6 +11,7 @@
 
 # Project files 
 user_config_override.h
+platformio_override.ini
 
 # Prerequisites
 *.d

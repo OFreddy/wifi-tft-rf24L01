@@ -11,10 +11,23 @@ I wanted an independent display to always have an overview of the current yield 
 
 This project is still a work in progress. It is far away from the almost perfect and comfortable and easy to use solutions from other projects. 
 
-Some more pictures of the latest prototype can be found here.
+Some more pictures of the latest prototype can be found [here](docs/images/README.md).
+---
+## Firmware
+
+The firmware for the EPS8266 microcontroller is build with Arduino PlatformIO Framework for the ESP8266. 
+
+It uses a snapshot or a fork of the following projects:
+
+- [ThingPulse minigrafx](https://github.com/ThingPulse/minigrafx)
+- [Bounce2](https://github.com/thomasfredericks/Bounce2)
+- [RobTillaart CRC](https://github.com/RobTillaart/CRC)
+- [BuelowP sunset](https://github.com/buelowp/sunset)
+
+and some more (experimental)...
 
 ---
-## Required components and material 
+## Hardware - Required components and material 
 
 ### ESP8266 WeMos D1 mini
 

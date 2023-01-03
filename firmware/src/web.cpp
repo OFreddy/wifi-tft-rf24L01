@@ -5,13 +5,17 @@
 
 #include "web.h"
 
+#include "i18n.h"
+
 // Web page contents
 #include "style_css.h"
 #include "favicon.h"
 #include "index_html.h"
 #include "config_html.h"
+#include "config_wifi_html.h"
+#include "config_ntp_html.h"
+#include "restart_html.h"
 
-#include "config_x.h"
 #include "config.h"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -34,14 +38,6 @@ web::web(app *main, char version[])
 
 void web::setup(void)
 {
-    // Wifi configuration
-    mConfigWifi = new WebConfig();
-    DBG_PRINTF(DBG_PSTR("web::setup wifiCfg->setDescription\n"));
-    mConfigWifi->setCfgName(PSTR("WiFi Settings"));
-    mConfigWifi->setDescription(paramsWifi);
-    DBG_PRINTF(DBG_PSTR("web::setup wifiCfg->readConfig\n"));
-    mConfigWifi->readConfig(CONFFILENAMEWIFI);
-    DBG_PRINTF(DBG_PSTR("web::setup finished\n"));
 
     mWebServer->on("/", std::bind(&web::showIndex, this));
     mWebServer->on("/index", std::bind(&web::showIndex, this));
@@ -50,9 +46,11 @@ void web::setup(void)
     mWebServer->onNotFound(std::bind(&web::showNotFound, this));
     mWebServer->on("/cfg", std::bind(&web::showConfig, this));
     mWebServer->on("/cfgwifi", std::bind(&web::showWifiCfg, this));
+    mWebServer->on("/cfgntp", std::bind(&web::showNtpCfg, this));
     mWebServer->on("/uptime", std::bind(&web::showUptime, this));
     mWebServer->on("/time", std::bind(&web::showTime, this));
     mWebServer->on("/cmdstat", std::bind(&web::showStatistics, this));
+    mWebServer->on("/file", std::bind(&web::showFile, this));
 
     mWebServer->begin();
 }
@@ -68,6 +66,18 @@ void web::loop(void)
 
 void web::showIndex(void)
 {
+    if (mWebServer->hasArg(F("rst")))
+    {
+        // Send response
+        String html = FPSTR(restart_html);
+        html = fillStandardParms(html);
+        html.replace(F("{MSG}"), F("Restart requested!"));
+        mWebServer->send(200, "text/html", html);
+
+        ConfigInst.requestRestart();
+        return;
+    }
+
     String html = FPSTR(index_html);
     html.replace(F("{VERSION}"), mVersion);
     html.replace(F("{GIT}"), AUTO_GIT_HASH);
@@ -116,8 +126,7 @@ void web::showNotFound(void)
 void web::showConfig(void)
 {
     String html = FPSTR(config_html);
-    html.replace(F("{VERSION}"), mVersion);
-    html.replace(F("{GIT}"), AUTO_GIT_HASH);
+    html = fillStandardParms(html);
     mWebServer->send(200, "text/html", html);
 }
 
@@ -125,20 +134,125 @@ void web::showConfig(void)
 
 void web::showWifiCfg(void)
 {
-    DBG_PRINTF(DBG_PSTR("web::showWifiCfg"));
+    DBG_PRINTF(DBG_PSTR("web::showWifiCfg\n"));
     dumpReceivedArgs();
-    mConfigWifi->handleFormRequest(mWebServer);
     if (mWebServer->hasArg(F("save")))
     {
-        uint8_t cnt = mConfigWifi->getCount();
+        char tmp[64];
+
+        uint8_t cnt = mWebServer->args();
         DBG_PRINTF(DBG_PSTR("*********** Wifi Konfiguration ************\n"));
         for (uint8_t i = 0; i < cnt; i++)
         {
-            Serial.print(mConfigWifi->getName(i));
+            Serial.print(mWebServer->argName(i).c_str());
             Serial.print(" = ");
-            Serial.println(mConfigWifi->values[i]);
+            Serial.println(mWebServer->arg(i).c_str());
         }
+
+        if (getArg(PSTR("ssid1"), tmp, sizeof(tmp)))
+            strncpy((char *)&ConfigInst.get().WiFi_Ssid1, tmp, sizeof(ConfigInst.get().WiFi_Ssid1));
+        if (getArg(PSTR("pwd1"), tmp, sizeof(tmp)))
+            if(strcmp((char*)&tmp, D_ASTERISK_PWD) != 0)
+                strncpy((char *)&ConfigInst.get().WiFi_Password1, tmp, sizeof(ConfigInst.get().WiFi_Password1));
+        if (getArg(PSTR("ssid2"), tmp, sizeof(tmp)))
+            if(strcmp((char*)&tmp, D_ASTERISK_PWD) != 0)
+                strncpy((char *)&ConfigInst.get().WiFi_Ssid2, tmp, sizeof(ConfigInst.get().WiFi_Ssid2));
+        if (getArg(PSTR("pwd2"), tmp, sizeof(tmp)))
+            strncpy((char *)&ConfigInst.get().WiFi_Password2, tmp, sizeof(ConfigInst.get().WiFi_Password2));
+        if (getArg(PSTR("nostname"), tmp, sizeof(tmp)))
+            strncpy((char *)&ConfigInst.get().WiFi_Hostname, tmp, sizeof(ConfigInst.get().WiFi_Hostname));
+
+        ConfigInst.write();
+
+        // Send response
+        String html = FPSTR(restart_html);
+        html = fillStandardParms(html);
+        html.replace(F("{MSG}"), F("Configuration saved!"));
+        mWebServer->send(200, "text/html", html);
+
+        ConfigInst.requestRestart();
+
+        return;
     }
+
+    String html = FPSTR(config_wifi_html);
+
+    html = fillStandardParms(html);
+
+    html.replace(F("{SSID1}"), ConfigInst.get().WiFi_Ssid1);
+    html.replace(F("{PWD1}"), F("****"));
+    html.replace(F("{SSID2}"), ConfigInst.get().WiFi_Ssid2);
+    html.replace(F("{PWD2}"), F("****"));
+    html.replace(F("{HOSTNAME}"), ConfigInst.get().WiFi_Hostname);
+
+    DBG_PRINTF(DBG_PSTR("web::showWifiCfg Sending response...\n"));
+    mWebServer->send(200, "text/html", html);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void web::showNtpCfg(void)
+{
+    char tmp[64];
+
+    DBG_PRINTF(DBG_PSTR("web::showNtpCfg\n"));
+    dumpReceivedArgs();
+    if (mWebServer->hasArg(F("save")))
+    {
+
+        uint8_t cnt = mWebServer->args();
+        DBG_PRINTF(DBG_PSTR("*********** NTP Konfiguration ************\n"));
+        for (uint8_t i = 0; i < cnt; i++)
+        {
+            Serial.print(mWebServer->argName(i).c_str());
+            Serial.print(" = ");
+            Serial.println(mWebServer->arg(i).c_str());
+        }
+
+        if (getArg(PSTR("ssen"), tmp, sizeof(tmp)))
+            ConfigInst.get().Sunset_Enabled = true;
+        if (getArg(PSTR("lat"), tmp, sizeof(tmp)))
+            strncpy((char *)&ConfigInst.get().Sunset_Latitude, tmp, sizeof(ConfigInst.get().Sunset_Latitude));
+        if (getArg(PSTR("lon"), tmp, sizeof(tmp)))
+            strncpy((char *)&ConfigInst.get().Sunset_Longitude, tmp, sizeof(ConfigInst.get().Sunset_Longitude));
+        if (getArg(PSTR("ofsr"), tmp, sizeof(tmp)))
+            ConfigInst.get().Sunset_Sunriseoffset = atoi(tmp);
+        if (getArg(PSTR("ofss"), tmp, sizeof(tmp)))
+            ConfigInst.get().Sunset_Sunsetoffset = atoi(tmp);
+
+        ConfigInst.write();
+
+        // Send response
+        String html = FPSTR(restart_html);
+        html = fillStandardParms(html);
+        html.replace(F("{MSG}"), F("Configuration saved!"));
+        mWebServer->send(200, "text/html", html);
+
+        ConfigInst.requestRestart();
+
+        return;
+    }
+
+    String html = FPSTR(config_ntp_html);
+
+    html = fillStandardParms(html);
+
+    html.replace(F("{NTPA}"), ConfigInst.get().Ntp_Server);
+    sprintf((char*)&tmp, "%u", ConfigInst.get().Ntp_Port);
+    html.replace(F("{NTPP}"), tmp);
+    sprintf((char*)&tmp, "\"%s\"", ConfigInst.get().Ntp_TimezoneDescr);
+    html.replace(tmp, String(tmp) + " selected");
+
+    html.replace(F("{SSCHK}"), ConfigInst.get().Sunset_Enabled?"checked":"");
+    html.replace(F("{LAT}"), ConfigInst.get().Sunset_Latitude);
+    html.replace(F("{LON}"), ConfigInst.get().Sunset_Longitude);
+    sprintf((char*)&tmp, "%i", ConfigInst.get().Sunset_Sunriseoffset);
+    html.replace(F("{OFSR}"), tmp);
+    sprintf((char*)&tmp, "%i", ConfigInst.get().Sunset_Sunsetoffset);
+    html.replace(F("{OFSS}"), tmp);
+
+    DBG_PRINTF(DBG_PSTR("web::showNtpCfg Sending response...\n"));
+    mWebServer->send(200, "text/html", html);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +300,15 @@ void web::showStatistics(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void web::showFile(void)
+{
+    String resp = ConfigInst.load_from_file(CONFIG_FILENAME);
+
+    mWebServer->send(200, F("text/plain"), resp.c_str());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void web::dumpReceivedArgs(void)
 {
     String args = "ArgCnt: ";
@@ -198,7 +321,32 @@ void web::dumpReceivedArgs(void)
         args += mWebServer->arg(i) + "\n";     // Get the value of the parameter
     }
 
-    DBG_PRINTF(DBG_PSTR("%s"), args.c_str());
+    DBG_PRINTF(DBG_PSTR("%s\n"), args.c_str());
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String web::fillStandardParms(String html)
+{
+    html.replace(F("{VERSION}"), mVersion);
+    html.replace(F("{GIT}"), AUTO_GIT_HASH);
+
+    return html;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool web::getArg(const char *arg, char *out, size_t max)
+{
+    String s = mWebServer->arg((const __FlashStringHelper *)arg);
+
+    if (s.length() > 0)
+    {
+        strlcpy(out, s.c_str(), max);
+        return true;
+    }
+
+    return false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

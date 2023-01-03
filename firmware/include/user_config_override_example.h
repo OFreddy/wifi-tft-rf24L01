@@ -35,20 +35,20 @@
 #undef  TIMESERVER_NAME
 #define TIMESERVER_NAME   "pool.ntp.org"
 
-#undef  TIMEZONE
-#define TIMEZONE          1        // Central European time +1
+#undef  NTP_TIMEZONEDESCR
+#define NTP_TIMEZONEDESCR "Europe/Amsterdam" // Central European time +1
 
 #undef  TIME_GMT_OFFSET_S  
-#define TIME_GMT_OFFSET_S 3600     // The GMT offset in seconds for your location
+#define TIME_GMT_OFFSET_S 3600            // The GMT offset in seconds for your location
 
 #undef  TIME_DST_OFFSET_S  
-#define TIME_DST_OFFSET_S 3600     // The DST offset in seconds dfor your location
+#define TIME_DST_OFFSET_S 3600            // The DST offset in seconds dfor your location
 
-#undef  LATITUDE
-#define LATITUDE          53.2197  // [Latitude] Your location to be used with sunrise and sunset
+#undef  SUNSET_LATITUDE
+#define SUNSET_LATITUDE   "53.2197" // Latitude - Your location to be used with sunrise and sunset
 
-#undef  LONGITUDE
-#define LONGITUDE         7.98004  // [Longitude] Your location to be used with sunrise and sunset
+#undef  SUNSET_LONGITUDE
+#define SUNSET_LONGITUDE  "7.98004" // Longitude - Your location to be used with sunrise and sunset
 
 */
 

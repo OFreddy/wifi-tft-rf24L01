@@ -24,6 +24,8 @@
 #include <WiFiUdp.h>
 #include <DNSServer.h>
 
+#include "TimeoutHelper.h"
+
 enum NetworkState_E
 {
     eNetworkStateInit,
@@ -53,8 +55,9 @@ public:
     void loop();
 
     bool IsConnected(void);
+    NetworkState_E GetNetworkState();
     int8_t GetWifiQuality(void);
-    String GetHostname(void);
+    String GetStationSSID(void);
 
 private:
     bool mApActive = false;

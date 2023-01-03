@@ -22,13 +22,16 @@ extern HM_Radio hmRadio;
 
 #include "config.h"
 #include "network.h"
+#include <time.h>
+#include "TZinfo.h"
+#include "SunsetClass.h"
+#include "confignetwork.h"
 
 #include "_dbg.h"
 #include "version.h"
 #include "app.h"
 
 // HTTP Config
-#define HTTPSERVER_NAME "Solar2.fritz.box"
 #define HTTPRESPONSE_TIMEOUT 20000
 
 // -- Location ------------------------------------^
@@ -51,7 +54,6 @@ const String MONTH_NAMES[] = {"JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", 
 #define TFT_DC D2
 //#define TFT_RESET D4
 
-#if 1
 #define MINI_BLACK 0
 #define MINI_WHITE 1
 #define MINI_GREEN 2
@@ -65,25 +67,9 @@ uint16_t palette[] = {ILI9341_BLACK, // 0
 
 #define MINI_2ND MINI_GREEN
 
-#else
-#define MINI_BLACK 0
-#define MINI_WHITE 1
-#define MINI_YELLOW 2
-#define MINI_RED 3
-
-// defines the colors usable in the paletted 16 color frame buffer
-uint16_t palette[] = {ILI9341_BLACK,  // 0
-                      ILI9341_WHITE,  // 1
-                      ILI9341_YELLOW, // 2
-                      ILI9341_RED};   // 3
-
-#define MINI_2ND MINI_GREEN
-
-#endif
-
-int SCREEN_WIDTH = 320;
-int SCREEN_HEIGHT = 240;
-int BITS_PER_PIXEL = 2; // 2^2 = 4 colors , 2^4 = 16 colors, Crashes heap
+int SCREEN_WIDTH = 240;
+int SCREEN_HEIGHT = 320;
+int BITS_PER_PIXEL = 2; // 2^2 = 4 colors , 2^4 = 16 colors, larger value crashes heap
 
 app::app()
 {
@@ -152,6 +138,11 @@ void app::setup()
     DBG_PRINTF(DBG_PSTR("Loading settings...\n"));
     ConfigInst.read();
 
+    // Configure timezone
+    DBG_PRINTF(DBG_PSTR("Configuring timezone %s (%s)...\n"), 
+        (char*)&ConfigInst.get().Ntp_TimezoneDescr, getTzInfo(ConfigInst.get().Ntp_TimezoneDescr).c_str());
+    configTime(getTzInfo(ConfigInst.get().Ntp_TimezoneDescr).c_str(), ConfigInst.get().Ntp_Server);
+
     // Network instance
     NetworkInst.setup();
 
@@ -176,7 +167,7 @@ void app::setup()
     // TFT Display
     displayOn = displayState = true;
     tft = new ILI9341_SPI(TFT_CS, TFT_DC);
-    gfx = new MiniGrafx(tft, BITS_PER_PIXEL, palette, SCREEN_WIDTH, SCREEN_HEIGHT);
+    gfx = new MiniGrafx(tft, BITS_PER_PIXEL, palette, SCREEN_HEIGHT, SCREEN_WIDTH);
     gfx->init();
     gfx->setRotation(3);
     gfx->fillBuffer(0);
@@ -191,14 +182,15 @@ void app::setup()
     DBG_PRINTF(DBG_PSTR("Heap after HTTPReq server: %6d bytes\n"), ESP.getFreeHeap());
 
     // Sunset / dawn calculation
-    st.setup(LATITUDE, LONGITUDE, TIMEZONE, TIME_GMT_OFFSET_S, TIME_DST_OFFSET_S, TIMESERVER_NAME);
+    SunsetClassInst.init();
 
     // Cyclic ticker
     mUptimeTicker = new Ticker();
     mUptimeTicker->attach(1, [this]()
                           { this->cyclicTick(); });
 
-    DBG_PRINTF(DBG_PSTR("!!! Setup finished !!!\n"), hostname);
+    DBG_PRINTF(DBG_PSTR("!!! Setup finished !!!\n"));
+    DBG_PRINTF(DBG_PSTR("Hostname = %s\n"), ConfigNetworkInst.GetHostname().c_str());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +206,9 @@ void app::loop(bool bDisableUpdate)
     // Network instance
     NetworkInst.loop();
 
+    // Sunset
+    SunsetClassInst.loop();
+
     // Web server
     mWebInst->loop();
 
@@ -227,15 +222,31 @@ void app::loop(bool bDisableUpdate)
 
     // Display
     static uint32_t displayTick = 0;
-    // if (!bDisableUpdate)
+    if (checkTicker(&displayTick, 1000))
     {
-        if (checkTicker(&displayTick, 1000))
+        if(NetworkInst.IsConnected())
         {
             updateDisplay();
         }
+        else
+        {
+            static int progress = 0;
+
+            if ((progress += 10) >= 100)
+                progress = 0;
+
+            if (NetworkInst.GetNetworkState() == eNetworkstateAP)
+            {
+                drawProgress(progress, "Accesspoint open\nSSID = " + String(WIFI_AP_SSID) + "\nPassword = " + String(WIFI_AP_SSID) + "\nIP = 192.168.1.1");
+            }
+            else if (NetworkInst.GetNetworkState() == eNetworkstateSTAConnect)
+            {
+                drawProgress(progress, "Connecting to\n" + NetworkInst.GetStationSSID() + "...");
+            }
+        }
     }
 
-    mTimestamp = st.loop();
+    mTimestamp = time(nullptr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -268,53 +279,16 @@ void app::drawProgress(uint8_t percentage, String text)
     gfx->setFont(ArialRoundedMTBold_14);
     gfx->setTextAlignment(TEXT_ALIGN_CENTER);
     gfx->setColor(MINI_WHITE);
-    gfx->drawString(120, 90, "Ollitronics");
+    gfx->drawString(120, 90, "wifi-tft " + String(mVersion));
     gfx->setColor(MINI_2ND);
 
-    gfx->drawString(120, 146, text);
+    gfx->drawStringMaxWidth(120, 146, SCREEN_WIDTH, text);
     gfx->setColor(MINI_WHITE);
-    gfx->drawRect(10, 168, 240 - 20, 15);
+    gfx->drawRect(10, 198, SCREEN_WIDTH - 20, 15);
     gfx->setColor(MINI_2ND);
-    gfx->fillRect(12, 170, 216 * percentage / 100, 11);
+    gfx->fillRect(12, 200, (SCREEN_WIDTH - 24) * percentage / 100, 11);
 
     gfx->commit();
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void app::prepareHostname(char *pdest, const char *pname)
-{
-    const char *pC = pname;
-    uint8_t pos = 0;
-
-    while (*pC && pos < 24)
-    { // while !null and not over length
-        if (isalnum(*pC))
-        { // if the current char is alpha-numeric append it to the hostname
-            pdest[pos] = *pC;
-            pos++;
-        }
-        else if (*pC == ' ' || *pC == '_' || *pC == '-' || *pC == '+' || *pC == '!' || *pC == '?' || *pC == '*')
-        {
-            pdest[pos] = '-';
-            pos++;
-        }
-        // else do nothing - no leading hyphens and do not include hyphens for all other characters.
-        pC++;
-    }
-    // if the hostname is left blank, use the mac address/default mdns name
-    if (pos < 6)
-    {
-        sprintf(pdest + pos, "%*s", 6, escapedMac.c_str() + 6);
-    }
-    else
-    { // last character must not be hyphen
-        while (pos > 0 && pname[pos - 1] == '-')
-        {
-            pdest[pos - 1] = 0;
-            pos--;
-        }
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -329,8 +303,8 @@ void app::controlDisplay(void)
     if (!buttonBounce->read())
         displayDelay = millis() + 30000;
 
-    int sunrise = st.sunrise();
-    int sunset = st.sunset();
+    int sunrise = SunsetClassInst.getSunriseMinutes();
+    int sunset = SunsetClassInst.getSunsetMinutes();
     displayOn = (sunrise <= 0) || (sunset <= 0) || ((minPastMidnght >= sunrise) && (minPastMidnght <= sunset)) || (displayDelay > millis());
 
     if (displayOn && !displayState)
@@ -578,8 +552,9 @@ void app::drawTime(void)
     gfx->setFont(ArialMT_Plain_10);
     gfx->setColor(MINI_2ND);
 
-    int sunrise = st.sunrise();
-    int sunset = st.sunset();
+    int sunrise = SunsetClassInst.getSunriseMinutes();
+    int sunset = SunsetClassInst.getSunsetMinutes();
+
     sprintf(time_str, "%02u:%02u", sunrise / 60, sunrise % 60);
     gfx->drawString(240, 34, time_str);
     gfx->drawTriangle(205, 42, 211, 42, 208, 39);

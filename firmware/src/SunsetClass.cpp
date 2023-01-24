@@ -67,7 +67,7 @@ void SunsetClass::loop()
         if (_initialized)
         {
             _isDayTime = true;
-            _currentDay = -1;
+            _currentDay = _currentMinute = -1;
             _sunriseMinutes = _sunsetMinutes = 0;
             _initialized = false;
         }
@@ -80,7 +80,7 @@ void SunsetClass::loop()
     if (!getLocalTime(&timeinfo, 5))
     { // Time is not valid
         _isDayTime = true;
-        _currentDay = -1;
+        _currentDay = _currentMinute = -1;
         _sunriseMinutes = _sunsetMinutes = 0;
         return;
     }
@@ -95,9 +95,14 @@ void SunsetClass::loop()
         _sunSet.setTZOffset(_timezoneOffset + (timeinfo.tm_isdst != 0 ? 1 : 0));
         _sunriseMinutes = (int)_sunSet.calcSunrise();
         _sunsetMinutes = (int)_sunSet.calcSunset();
+    }
 
-        int secondsPastMidnight = timeinfo.tm_hour * 60 + timeinfo.tm_min;
-        _isDayTime = (secondsPastMidnight >= (_sunriseMinutes + ConfigInst.get().Sunset_Sunriseoffset)) && (secondsPastMidnight < (_sunsetMinutes + ConfigInst.get().Sunset_Sunsetoffset));
+    if (_currentMinute != timeinfo.tm_min)
+    {
+        int minutesPastMidnight = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+
+        _currentMinute = timeinfo.tm_min;
+        _isDayTime = (minutesPastMidnight >= (_sunriseMinutes + ConfigInst.get().Sunset_Sunriseoffset)) && (minutesPastMidnight < (_sunsetMinutes + ConfigInst.get().Sunset_Sunsetoffset));
 
         DBG_PRINTF("SUNSET offset: %u Sunrise: %u Sunset: %u\n", _timezoneOffset, _sunriseMinutes, _sunsetMinutes);
     }
@@ -111,7 +116,7 @@ void SunsetClass::setLocation()
     _longitude = strtod(ConfigInst.get().Sunset_Longitude, NULL);
 
     // Set default values
-    _currentDay = -1;
+    _currentDay = _currentMinute = -1;
     _isDayTime = true;
     _sunriseMinutes = _sunsetMinutes = 0;
 

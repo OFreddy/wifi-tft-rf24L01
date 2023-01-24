@@ -265,8 +265,6 @@ void app::cyclicTick(void)
     if ((mUptimeSecs % 60) == 0)
     {
     }
-
-    // updateDisplay();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -275,7 +273,7 @@ void app::cyclicTick(void)
 void app::drawProgress(uint8_t percentage, String text)
 {
     gfx->fillBuffer(MINI_BLACK);
-    // gfx->drawPalettedBitmapFromPgm(20, 5, ThingPulseLogo);
+    gfx->drawPalettedBitmapFromPgm(80, 5, unknown);
     gfx->setFont(ArialRoundedMTBold_14);
     gfx->setTextAlignment(TEXT_ALIGN_CENTER);
     gfx->setColor(MINI_WHITE);
@@ -387,6 +385,7 @@ void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState
         inst->solarTotalEnergyResolved = root[6]["val"];
         inst->garagePosClose = root[7]["val"];
         inst->garagePosOpen = root[8]["val"];
+        inst->outsideTemp = root[9]["val"];
 #endif
 
 #if defined(ENV_DEM)
@@ -470,7 +469,7 @@ void app::getHttpData(void)
 #endif
 #if defined(ENV_FRI)
     // https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?javascript.0.solarnb_power=777.7
-    const String serverPath = "http://192.168.178.3:8087/getBulk/smartmeter.0.1-0:16_7_0__255.value,javascript.0.solartotal_power,javascript.0.solar1_power,javascript.0.solar2_power,javascript.0.solar3_power,javascript.0.solartotal_energycalc,javascript.0.solartotal_energyresolved,mqtt.0.stat.Garage.POSCLOSE,mqtt.0.stat.Garage.POSOPEN";
+    const String serverPath = "http://192.168.178.3:8087/getBulk/smartmeter.0.1-0:16_7_0__255.value,javascript.0.solartotal_power,javascript.0.solar1_power,javascript.0.solar2_power,javascript.0.solar3_power,javascript.0.solartotal_energycalc,javascript.0.solartotal_energyresolved,mqtt.0.stat.Garage.POSCLOSE,mqtt.0.stat.Garage.POSOPEN,0_userdata.0.Ambiente.Aussen.Temperatur";
     // const String serverPath = F("http://api.openweathermap.org/data/2.5/weather?lat=50.8197&lon=7.74004&units=metric&lang=de&APPID=a950613e6fc0423912be0fe02aa897e4");
 #endif
 #if defined(ENV_DEM)
@@ -594,25 +593,25 @@ void app::updateDisplay(void)
     drawTime();
 
     // Horizontal lines
-    // gfx->drawLine(0,  80, 240,  80);
+    gfx->drawLine(0, 80, 240, 80);
     gfx->drawLine(0, 140, 240, 140);
     gfx->drawLine(0, 200, 240, 200);
     gfx->drawLine(0, 260, 240, 260);
 
     // Vertical lines
-    gfx->drawLine(120, 140, 120, 320);
+    gfx->drawLine(120, 80, 120, 320);
 
     gfx->setFont(ArialRoundedMTBold_14);
     gfx->setTextAlignment(TEXT_ALIGN_CENTER);
     gfx->setColor(MINI_2ND);
-    gfx->drawString(60, 145, "Strom Summe [W]");
+    gfx->drawString(60, 145, "Strom gesamt [W]");
     gfx->drawString(180, 145, "Solar [W]");
-    gfx->drawString(60, 205, "Netz [W]");
-    gfx->drawString(180, 205, "Solar Summe [W]");
+    gfx->drawString(60, 205, "Fremdbezug [W]");
+    gfx->drawString(180, 205, "Solar gesamt [W]");
     gfx->setColor(MINI_WHITE);
 
-    gfx->drawString(60, 265, "Solar Total");
-    gfx->drawString(180, 265, "Solar Selbst");
+    gfx->drawString(60, 265, "Ertrag Total");
+    gfx->drawString(180, 265, "Ertrag Selbst");
 
     gfx->setColor(MINI_2ND);
 
@@ -664,27 +663,39 @@ void app::updateDisplay(void)
     }
     else
     {
-        gfx->setFont(ArialMT_Plain_16);
+        gfx->setFont(ArialRoundedMTBold_14);
+        gfx->setColor(MINI_2ND);
+        gfx->drawString(60, 85, "Garage");
+
+        gfx->setFont(ArialRoundedMTBold_36);
+
         if ((garagePosOpen == 0) && (garagePosClose == 0))
         {
             gfx->setColor(MINI_RED);
-            gfx->drawString(120, 80, "Garage Mittelstellung");
+            gfx->drawString(60, 100, "Mitte");
         }
         else if ((garagePosOpen == 1) && (garagePosClose == 1))
         {
             gfx->setColor(MINI_RED);
-            gfx->drawString(120, 80, "Garage Fehler");
+            gfx->drawString(60, 100, "Fehler");
         }
         else if (garagePosOpen == 1)
         {
             gfx->setColor(MINI_WHITE);
-            gfx->drawString(120, 80, "Garage AUF");
+            gfx->drawString(60, 100, "AUF");
         }
         else if (garagePosClose == 1)
         {
             gfx->setColor(MINI_2ND);
-            gfx->drawString(120, 80, "Garage ZU");
+            gfx->drawString(60, 100, "ZU");
         }
+
+        gfx->setFont(ArialRoundedMTBold_14);
+        gfx->drawString(180, 85, "Außentemp. [°C]");
+
+        gfx->setFont(ArialRoundedMTBold_36);
+        sprintf_P(&buf[0], PSTR("%.1f"), outsideTemp);
+        gfx->drawString(180, 100, buf);
     }
 
     gfx->setTextAlignment(TEXT_ALIGN_LEFT);

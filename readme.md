@@ -45,14 +45,14 @@ Source of supply
 
 Sample picture
 
-![WeMos-D1 mini](docs/images/nrf24l01.jpg)
+![NRF24l01](docs/images/nrf24l01.jpg)
 
 ### ILI9341 based TFT Display 320x240 pixel
 
 I always order the TFT modules directly from China via AliExpress. As the suppliers change frequently it is difficult to keep a link updated here. Make sure the pcb has the dimensions 77mm x 42.5mm and a 14 pin header at the bottom for target connection.
 
 **Sample picture**
-![WeMos-D1 mini](docs/images/ili9341tft.png)
+![ILI9341 based TFT display](docs/images/ili9341tft.png)
 
 ### BOM for the pcb
 |Quantity|Item|

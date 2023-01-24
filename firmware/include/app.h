@@ -83,6 +83,7 @@ private:
     float solarTotalEnergy;
     float solarTotalEnergyResolved;
     uint8_t garagePosOpen, garagePosClose;
+    float outsideTemp;
 #endif
 #if defined(ENV_DEM)
     int StatusSNS_ENERGY_Power;

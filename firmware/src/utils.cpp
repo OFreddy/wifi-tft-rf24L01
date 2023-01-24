@@ -16,15 +16,18 @@ uint32_t Utils::getChipId()
 
 #ifdef ARDUINO_ARCH_ESP32
     rawChipId = ESP.getEfuseMac();
-#else
-    rawChipId = ESP.getChipId();
-#endif
 
     uint32_t chipId = 0;
     for (int i = 0; i < 17; i += 8) {
         chipId |= ((rawChipId >> (40 - i)) & 0xff) << i;
     }
+
     return chipId;
+#else
+    rawChipId = ESP.getChipId();
+
+    return rawChipId;
+#endif
 }
 
 uint64_t Utils::generateDtuSerial()

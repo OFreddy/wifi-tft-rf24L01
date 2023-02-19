@@ -1,12 +1,6 @@
 #include <Arduino.h>
 #include <umm_malloc/umm_heap_select.h>
 
-#define DEBUG_HTTP_REQ false
-#if (DEBUG_HTTP_REQ == true)
-#define ASYNC_HTTP_DEBUG_PORT Serial
-#define _ASYNC_HTTP_LOGLEVEL_ 2
-#endif
-
 #include <AsyncHTTPRequest_Generic.h>
 
 #include "ArialRounded.h"
@@ -14,7 +8,7 @@
 
 #include "ms_ticker.h"
 
-#if defined(ENV_KER) || defined(ENV_STR)
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 #include "hm_radio.h"
 #include "hm_inverter.h"
 extern HM_Radio hmRadio;
@@ -27,15 +21,12 @@ extern HM_Radio hmRadio;
 #include "SunsetClass.h"
 #include "confignetwork.h"
 
+#include "tft_custom.h"
+#include "usercontentinst.h"
+
 #include "_dbg.h"
 #include "version.h"
 #include "app.h"
-
-// HTTP Config
-#define HTTPRESPONSE_TIMEOUT 20000
-
-// -- Location ------------------------------------^
-// http://api.openweathermap.org/data/2.5/weather?lat=50.8197&lon=7.74004&units=metric&lang=de&APPID=a950613e6fc0423912be0fe02aa897e4
 
 const String WDAY_NAMES[] = {"SO", "MO", "DI", "MI", "DO", "FR", "SA"};
 const String MONTH_NAMES[] = {"JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", "AUG", "SEP", "OKT", "NOV", "DEZ"};
@@ -44,28 +35,19 @@ const String MONTH_NAMES[] = {"JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", 
 #define BUTTON_PIN D3
 
 // LCD Display
-
 #define LCD_PWR_PIN D1
 #define TFT_SCK D5
 #define TFT_MISO D6
 #define TFT_MOSI D7
-// #define TFT_CS D8 // Old assignment
 #define TFT_CS D0 // RF and TFT Board
 #define TFT_DC D2
-//#define TFT_RESET D4
 
-#define MINI_BLACK 0
-#define MINI_WHITE 1
-#define MINI_GREEN 2
-#define MINI_RED 3
 
 // defines the colors usable in the paletted 16 color frame buffer
 uint16_t palette[] = {ILI9341_BLACK, // 0
                       ILI9341_WHITE, // 1
                       ILI9341_GREEN, // 2
                       ILI9341_RED};  // 3
-
-#define MINI_2ND MINI_GREEN
 
 int SCREEN_WIDTH = 240;
 int SCREEN_HEIGHT = 320;
@@ -82,15 +64,7 @@ app::app()
     mUptimeSecs = 0;
 
     // Http Request
-#if defined(ENV_KER) || defined(ENV_STR)
-    mHttpReqInterval = 30000;
-#else
-    mHttpReqInterval = 5000;
-#endif
-
-#if defined(ENV_FRI)
-    garagePosOpen = garagePosClose = 0;
-#endif
+    mHttpReqInterval = HTTP_REQUEST_INTERVALL;
 }
 
 app::~app()
@@ -176,7 +150,6 @@ void app::setup()
 
     // http client
     mHttpReq = new AsyncHTTPRequest();
-    mHttpReq->setDebug(DEBUG_HTTP_REQ);
     mHttpReq->onReadyStateChange(httpRequestCb, this);
 
     DBG_PRINTF(DBG_PSTR("Heap after HTTPReq server: %6d bytes\n"), ESP.getFreeHeap());
@@ -327,177 +300,14 @@ void app::controlDisplay(void)
 
 void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState)
 {
-    app *inst = (app *)optParm;
 
-    if (readyState == readyStateDone)
-    {
-        String httpResponse = request->responseText();
-
-        DBG_PRINTF(DBG_PSTR("\n%08i **ReadyStateDone %i\n"), millis(), request->responseHTTPcode());
-
-        if (request->responseHTTPcode() == -4 || request->responseHTTPcode() == -5)
-        {
-            if (NetworkInst.IsConnected())
-            {
-                // retriggerTicker(&inst->mHttpReqTicker, 1000);
-            }
-        }
-
-        if (request->responseHTTPcode() != 200)
-            return;
-
-        if (httpResponse.length() == 0)
-        {
-            DBG_PRINTF(DBG_PSTR("\n%08i Http received empty response\n"), millis());
-            // inst->getHttpData();
-            return;
-        }
-
-        retriggerTicker(&inst->mHttpReqTicker, inst->mHttpReqInterval);
-
-        DBG_PRINTF(DBG_PSTR("\n%08i **************************************\n"), millis());
-        DBG_PRINTF(httpResponse.c_str());
-        DBG_PRINTF(DBG_PSTR("\n**************************************\n"));
-
-#if defined(ENV_FRI)
-        // see https://arduinojson.org/v6/assistant/#/step1
-        StaticJsonDocument<32> filter;
-        filter[0]["val"] = true;
-
-        StaticJsonDocument<512> jsonDoc;
-
-        auto error = deserializeJson(jsonDoc, httpResponse.c_str(), DeserializationOption::Filter(filter));
-
-        if (error)
-        {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
-            return;
-        }
-
-        JsonArray root = jsonDoc.as<JsonArray>();
-
-        inst->gridPower = root[0]["val"];
-        inst->solarPower = root[1]["val"];
-        inst->solar1Power = root[2]["val"];
-        inst->solar2Power = root[3]["val"];
-        inst->solar3Power = root[4]["val"];
-        inst->solarTotalEnergy = root[5]["val"];
-        inst->solarTotalEnergyResolved = root[6]["val"];
-        inst->garagePosClose = root[7]["val"];
-        inst->garagePosOpen = root[8]["val"];
-        inst->outsideTemp = root[9]["val"];
-#endif
-
-#if defined(ENV_DEM)
-        // see https://arduinojson.org/v6/assistant/#/step1
-        StaticJsonDocument<512> jsonDoc;
-        auto error = deserializeJson(jsonDoc, httpResponse.c_str());
-
-        if (error)
-        {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
-            return;
-        }
-
-        // const char *StatusSNS_Time = jsonDoc["StatusSNS"]["Time"]; // "2022-06-04T10:31:45"
-
-        JsonObject StatusSNS_ENERGY = jsonDoc["StatusSNS"]["ENERGY"];
-        // const char *StatusSNS_ENERGY_TotalStartTime = StatusSNS_ENERGY["TotalStartTime"];
-        inst->StatusSNS_ENERGY_Total = StatusSNS_ENERGY["Total"];         // 0.687
-        inst->StatusSNS_ENERGY_Yesterday = StatusSNS_ENERGY["Yesterday"]; // 0.687
-        inst->StatusSNS_ENERGY_Today = StatusSNS_ENERGY["Today"];         // 0
-        inst->StatusSNS_ENERGY_Power = StatusSNS_ENERGY["Power"];         // 0
-        // int StatusSNS_ENERGY_ApparentPower = StatusSNS_ENERGY["ApparentPower"]; // 0
-        // int StatusSNS_ENERGY_ReactivePower = StatusSNS_ENERGY["ReactivePower"]; // 0
-        // int StatusSNS_ENERGY_Factor = StatusSNS_ENERGY["Factor"];               // 0
-        inst->StatusSNS_ENERGY_Voltage = StatusSNS_ENERGY["Voltage"]; // 0
-                                                                      // int StatusSNS_ENERGY_Current = StatusSNS_ENERGY["Current"];             // 0
-#endif
-
-#if defined(ENV_STR)
-        // see https://arduinojson.org/v6/assistant/#/step1
-        StaticJsonDocument<512> jsonDoc;
-        auto error = deserializeJson(jsonDoc, httpResponse.c_str());
-
-        if (error)
-        {
-            DBG_PRINTF(DBG_PSTR("JSON parsing failed! Code: %s\n"), error.c_str());
-            return;
-        }
-
-        // const char *StatusSNS_Time = jsonDoc["StatusSNS"]["Time"]; // "2022-06-04T10:31:45"
-
-        JsonObject StatusSNS_ENERGY = jsonDoc["StatusSNS"]["STROM"];
-        // const char *StatusSNS_ENERGY_TotalStartTime = StatusSNS_ENERGY["TotalStartTime"];
-        inst->StatusSNS_ENERGY_Total = StatusSNS_ENERGY["Total_in"]; // 0.687
-#endif
-
-        inst->lastHttpResponse = millis();
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void app::getHttpData(void)
 {
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Beispiele für URLs:
-    //   Über Internet auf offenen Port der Restful API Daten senden:
-
-#if defined(ENV_KER)
-    // Do nothing here
-    return;
-    // "https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?javascript.0.solarnb_power=777.7"
-    // String serverPath = "https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?";
-    String serverPath = "http://of22.acedns.org:46879/setBulk?prettyPrint&user=restapi&pass=gH$4pQV7&";
-    serverPath += "javascript.0.solarnb_power=";
-    HM_Inverter<float> *inv = hmPackets.GetInverterInstance(0);
-    float f = inv->getValue(inv->getPosByChFld(CH0, FLD_PAC));
-    serverPath += String(f);
-    serverPath += "&javascript.0.solarnb1_power=";
-    f = inv->getValue(inv->getPosByChFld(CH1, FLD_PDC));
-    serverPath += String(f);
-    serverPath += "&javascript.0.solarnb2_power=";
-    f = inv->getValue(inv->getPosByChFld(CH2, FLD_PDC));
-    serverPath += String(f);
-    serverPath += "&javascript.0.solarnb3_power=";
-    f = inv->getValue(inv->getPosByChFld(CH3, FLD_PDC));
-    serverPath += String(f);
-    serverPath += "&javascript.0.solarnb4_power=";
-    f = inv->getValue(inv->getPosByChFld(CH4, FLD_PDC));
-    serverPath += String(f);
-#endif
-#if defined(ENV_FRI)
-    // https://of22.acedns.org:46879/prettyPrint&user=restapi&pass=gH$4pQV7&setBulk?javascript.0.solarnb_power=777.7
-    const String serverPath = "http://192.168.178.3:8087/getBulk/smartmeter.0.1-0:16_7_0__255.value,javascript.0.solartotal_power,javascript.0.solar1_power,javascript.0.solar2_power,javascript.0.solar3_power,javascript.0.solartotal_energycalc,javascript.0.solartotal_energyresolved,mqtt.0.stat.Garage.POSCLOSE,mqtt.0.stat.Garage.POSOPEN,0_userdata.0.Ambiente.Aussen.Temperatur";
-    // const String serverPath = F("http://api.openweathermap.org/data/2.5/weather?lat=50.8197&lon=7.74004&units=metric&lang=de&APPID=a950613e6fc0423912be0fe02aa897e4");
-#endif
-#if defined(ENV_DEM)
-    const String serverPath = "http://solar2.fritz.box/cm?cmnd=status%208";
-#endif
-#if defined(ENV_STR)
-    const String serverPath = "http://strom.fritz.box/cm?cmnd=status%208";
-#endif
-
-    if (mHttpReq->readyState() == readyStateUnsent || mHttpReq->readyState() == readyStateDone)
-    {
-        bool requestOpenResult = mHttpReq->open("GET", serverPath.c_str());
-        if (requestOpenResult)
-        {
-            // Only send() if open() returns true, or crash
-            DBG_PRINTF(DBG_PSTR("%08i Sending Http request...\n"), millis());
-            mHttpReq->send();
-        }
-        else
-        {
-            DBG_PRINTF(DBG_PSTR("Can't send bad request\n"));
-            DBG_PRINTF(serverPath.c_str());
-        }
-    }
-    else
-    {
-        (DBG_PSTR("Can't send request\n"));
-    }
+    UserContentInst.getHttpData();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -580,11 +390,8 @@ void app::commitDisplay(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(ENV_FRI)
 void app::updateDisplay(void)
 {
-    char buf[32];
-
     if (!displayOn)
         return;
 
@@ -592,378 +399,19 @@ void app::updateDisplay(void)
     drawWifiQuality();
     drawTime();
 
-    // Horizontal lines
-    gfx->drawLine(0, 80, 240, 80);
-    gfx->drawLine(0, 140, 240, 140);
-    gfx->drawLine(0, 200, 240, 200);
-    gfx->drawLine(0, 260, 240, 260);
+    // Draw custom display content
+    UserContentInst.drawDisplayContent(gfx);
 
-    // Vertical lines
-    gfx->drawLine(120, 80, 120, 320);
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx->setColor(MINI_2ND);
-    gfx->drawString(60, 145, "Strom gesamt [W]");
-    gfx->drawString(180, 145, "Solar [W]");
-    gfx->drawString(60, 205, "Fremdbezug [W]");
-    gfx->drawString(180, 205, "Solar gesamt [W]");
-    gfx->setColor(MINI_WHITE);
-
-    gfx->drawString(60, 265, "Ertrag Total");
-    gfx->drawString(180, 265, "Ertrag Selbst");
-
-    gfx->setColor(MINI_2ND);
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_LEFT);
-
-    gfx->drawString(126, 165, PSTR("Trecker:"));
-    gfx->drawString(126, 180, PSTR("Garten:"));
-
-    gfx->setTextAlignment(TEXT_ALIGN_RIGHT);
-
-    sprintf_P(&buf[0], PSTR("%.1f"), solar3Power);
-    gfx->drawString(236, 165, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), solar1Power + solar2Power);
-    gfx->drawString(236, 180, buf);
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-
-    sprintf_P(&buf[0], PSTR("%.0f"), gridPower + solarPower);
-    gfx->drawString(60, 160, buf);
-
-    if (gridPower < 0.0)
-        gfx->setColor(MINI_RED);
-    sprintf_P(&buf[0], PSTR("%.0f"), gridPower);
-    gfx->drawString(60, 220, buf);
-    gfx->setColor(MINI_2ND);
-
-    if (solarPower > 1000)
-        sprintf_P(&buf[0], PSTR("%.0f"), solarPower);
-    else
-        sprintf_P(&buf[0], PSTR("%.1f"), solarPower);
-    gfx->drawString(180, 220, buf);
-
-    gfx->setColor(MINI_WHITE);
-    sprintf_P(&buf[0], PSTR("%.1f"), solarTotalEnergy);
-    gfx->drawString(60, 280, buf);
-
-    sprintf_P(&buf[0], PSTR("%.1f"), solarTotalEnergyResolved);
-    gfx->drawString(180, 280, buf);
-
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-
-    if (lastHttpResponse + HTTPRESPONSE_TIMEOUT < millis())
-    {
-        gfx->setColor(MINI_RED);
-        gfx->drawString(120, 80, "Keine Daten!");
-        gridPower = solarPower = solarTotalEnergy = solarTotalEnergyResolved = 0;
-    }
-    else
-    {
-        gfx->setFont(ArialRoundedMTBold_14);
-        gfx->setColor(MINI_2ND);
-        gfx->drawString(60, 85, "Garage");
-
-        gfx->setFont(ArialRoundedMTBold_36);
-
-        if ((garagePosOpen == 0) && (garagePosClose == 0))
-        {
-            gfx->setColor(MINI_RED);
-            gfx->drawString(60, 100, "Mitte");
-        }
-        else if ((garagePosOpen == 1) && (garagePosClose == 1))
-        {
-            gfx->setColor(MINI_RED);
-            gfx->drawString(60, 100, "Fehler");
-        }
-        else if (garagePosOpen == 1)
-        {
-            gfx->setColor(MINI_WHITE);
-            gfx->drawString(60, 100, "AUF");
-        }
-        else if (garagePosClose == 1)
-        {
-            gfx->setColor(MINI_2ND);
-            gfx->drawString(60, 100, "ZU");
-        }
-
-        gfx->setFont(ArialRoundedMTBold_14);
-        gfx->drawString(180, 85, "Außentemp. [°C]");
-
-        gfx->setFont(ArialRoundedMTBold_36);
-        sprintf_P(&buf[0], PSTR("%.1f"), outsideTemp);
-        gfx->drawString(180, 100, buf);
-    }
-
-    gfx->setTextAlignment(TEXT_ALIGN_LEFT);
+    // Key press for debugging purposes
     gfx->setFont(ArialMT_Plain_10);
     gfx->setColor(MINI_WHITE);
     if (!buttonBounce->read())
         gfx->drawString(0, 9, "Taste");
 
+    // Update display hardware
     commitDisplay();
 }
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if defined(ENV_KER)
-void app::updateDisplay(void)
-{
-    char buf[32];
-    float f;
-    HM_Inverter<float> *inv = hmPackets.GetInverterInstance(0);
-
-    if (!displayOn)
-        return;
-
-    gfx->fillBuffer(MINI_BLACK);
-    drawWifiQuality();
-    drawTime();
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_RIGHT);
-    gfx->setColor(MINI_2ND);
-    if ((mTimestamp - inv->lastPayloadRcvTime) > 36000)
-        sprintf_P(&buf[0], PSTR("Daten nicht aktuell!"));
-    else if (mTimestamp >= inv->lastPayloadRcvTime)
-        sprintf_P(&buf[0], PSTR("Daten Alter: %u"), mTimestamp - inv->lastPayloadRcvTime);
-    else
-        sprintf_P(&buf[0], PSTR("Daten Alter: 0"));
-    gfx->drawString(235, 125, buf);
-
-    // Horizontal lines
-    // gfx->drawLine(0,  80, 240,  80);
-    gfx->drawLine(0, 140, 240, 140);
-    gfx->drawLine(0, 200, 240, 200);
-    gfx->drawLine(0, 260, 240, 260);
-
-    // Vertical lines
-    gfx->drawLine(120, 140, 120, 320);
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx->setColor(MINI_2ND);
-    gfx->drawString(60, 145, "Spannung [V]");
-    gfx->drawString(180, 145, "Temperatur [°C]");
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH0, FLD_UAC)));
-    gfx->drawString(60, 160, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH0, FLD_T)));
-    gfx->drawString(180, 160, buf);
-
-    // Mittlere Reihe
-    gfx->setColor(MINI_GREEN);
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->drawString(60, 205, "Solar [W]");
-    gfx->drawString(180, 205, "Solar Summe [W]");
-    gfx->setTextAlignment(TEXT_ALIGN_RIGHT);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH1, FLD_PDC)));
-    gfx->drawString(55, 225, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH2, FLD_PDC)));
-    gfx->drawString(115, 225, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH3, FLD_PDC)));
-    gfx->drawString(55, 240, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH4, FLD_PDC)));
-    gfx->drawString(115, 240, buf);
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    f = inv->getValue(inv->getPosByChFld(CH0, FLD_PAC));
-    if (f > 1000)
-        sprintf_P(&buf[0], PSTR("%.0f"), f);
-    else
-        sprintf_P(&buf[0], PSTR("%.1f"), f);
-    gfx->drawString(180, 220, buf);
-
-    // Unterste Reihe Ertrag Tag/Total
-    gfx->setColor(MINI_WHITE);
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->drawString(60, 265, "Ertrag Tag [Wh]");
-    gfx->drawString(180, 265, "Ertrag [kWh]");
-    gfx->setFont(ArialRoundedMTBold_36);
-    sprintf_P(&buf[0], PSTR("%.0f"), inv->getValue(inv->getPosByChFld(CH0, FLD_YD)));
-    gfx->drawString(60, 280, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv->getValue(inv->getPosByChFld(CH0, FLD_YT)));
-    gfx->drawString(180, 280, buf);
-
-    gfx->setTextAlignment(TEXT_ALIGN_LEFT);
-    gfx->setFont(ArialMT_Plain_10);
-    gfx->setColor(MINI_WHITE);
-    if (!buttonBounce->read())
-        gfx->drawString(0, 9, "Taste");
-
-    commitDisplay();
-}
-#endif
-
-#if defined(ENV_DEM)
-void app::updateDisplay(void)
-{
-    char buf[20];
-
-    if (!displayOn)
-        return;
-
-    gfx->fillBuffer(MINI_BLACK);
-    drawWifiQuality();
-    drawTime();
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx->setColor(MINI_2ND);
-    gfx->drawString(60, 145, "Leistung");
-    gfx->drawString(180, 145, "Spannung");
-    gfx->setColor(MINI_WHITE);
-    gfx->drawLine(0, 140, 240, 140);
-    gfx->drawLine(120, 140, 120, 199);
-
-    gfx->drawString(60, 205, "Energie Heute");
-    gfx->drawString(180, 205, "Energie Gestern");
-    gfx->drawString(120, 265, "Energie Total");
-    gfx->drawLine(0, 200, 240, 200);
-    gfx->drawLine(120, 200, 120, 260);
-    gfx->drawLine(0, 260, 240, 260);
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setColor(MINI_2ND);
-    sprintf_P(&buf[0], PSTR(" %i W "), StatusSNS_ENERGY_Power);
-    gfx->drawString(60, 160, buf);
-    sprintf_P(&buf[0], PSTR(" %i V "), StatusSNS_ENERGY_Voltage);
-    gfx->drawString(180, 160, buf);
-
-    gfx->setColor(MINI_WHITE);
-    sprintf_P(&buf[0], PSTR(" %.1f "), StatusSNS_ENERGY_Today);
-    gfx->drawString(60, 220, buf);
-
-    sprintf_P(&buf[0], PSTR(" %.1f "), StatusSNS_ENERGY_Yesterday);
-    gfx->drawString(180, 220, buf);
-
-    sprintf_P(&buf[0], PSTR(" %.1f kWh "), StatusSNS_ENERGY_Total);
-    gfx->drawString(120, 280, buf);
-
-    if (lastHttpResponse + HTTPRESPONSE_TIMEOUT < millis())
-    {
-        gfx->setColor(MINI_RED);
-        gfx->drawString(120, 80, "Keine Daten!");
-        StatusSNS_ENERGY_Power = StatusSNS_ENERGY_Voltage = 0;
-        StatusSNS_ENERGY_Today = StatusSNS_ENERGY_Yesterday = StatusSNS_ENERGY_Total = 0;
-    }
-
-    gfx->setColor(MINI_WHITE);
-    gfx->setTextAlignment(TEXT_ALIGN_LEFT);
-    gfx->setFont(ArialMT_Plain_10);
-    if (!buttonBounce->read())
-        gfx->drawString(0, 9, "Taste");
-
-    commitDisplay();
-}
-#endif
-
+/// End of file
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if defined(ENV_STR)
-void app::updateDisplay(void)
-{
-    char buf[32];
-    float f;
-    HM_Inverter<float> *inv1 = hmRadio.GetInverterInstance(0);
-    HM_Inverter<float> *inv2 = hmRadio.GetInverterInstance(1);
-
-    if (!displayOn)
-        return;
-
-    gfx->fillBuffer(MINI_BLACK);
-    drawWifiQuality();
-    drawTime();
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_RIGHT);
-    gfx->setColor(MINI_2ND);
-    if ((mTimestamp - inv1->lastPayloadRcvTime) > 36000)
-        sprintf_P(&buf[0], PSTR("Daten nicht aktuell!"));
-    else if (mTimestamp >= inv1->lastPayloadRcvTime)
-        sprintf_P(&buf[0], PSTR("Daten Alter: %u"), mTimestamp - inv1->lastPayloadRcvTime);
-    else
-        sprintf_P(&buf[0], PSTR("Daten Alter: 0"));
-    gfx->drawString(235, 125, buf);
-
-    // Horizontal lines
-    // gfx->drawLine(0,  80, 240,  80);
-    gfx->drawLine(0, 140, 240, 140);
-    gfx->drawLine(0, 200, 240, 200);
-    gfx->drawLine(0, 260, 240, 260);
-
-    // Vertical lines
-    gfx->drawLine(120, 140, 120, 320);
-
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    gfx->setColor(MINI_2ND);
-    gfx->drawString(60, 145, "Spannung [V]");
-    gfx->drawString(180, 145, "Temperatur [°C]");
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-
-    sprintf_P(&buf[0], PSTR("%.1f kWh"), StatusSNS_ENERGY_Total);
-    gfx->drawString(120, 90, buf);
-
-    sprintf_P(&buf[0], PSTR("%.1f"), inv1->getValue(inv1->getPosByChFld(CH0, FLD_UAC)));
-    gfx->drawString(60, 160, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv1->getValue(inv1->getPosByChFld(CH0, FLD_T)));
-    gfx->drawString(180, 160, buf);
-
-    // Mittlere Reihe
-    gfx->setColor(MINI_GREEN);
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->drawString(60, 205, "Solar [W]");
-    gfx->drawString(180, 205, "Solar Summe [W]");
-    gfx->setTextAlignment(TEXT_ALIGN_RIGHT);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv1->getValue(inv1->getPosByChFld(CH1, FLD_PDC)));
-    gfx->drawString(55, 225, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv1->getValue(inv1->getPosByChFld(CH2, FLD_PDC)));
-    gfx->drawString(115, 225, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv2->getValue(inv2->getPosByChFld(CH1, FLD_PDC)));
-    gfx->drawString(55, 240, buf);
-    sprintf_P(&buf[0], PSTR("%.1f"), inv2->getValue(inv2->getPosByChFld(CH2, FLD_PDC)));
-    gfx->drawString(115, 240, buf);
-
-    gfx->setFont(ArialRoundedMTBold_36);
-    gfx->setTextAlignment(TEXT_ALIGN_CENTER);
-    f = inv1->getValue(inv1->getPosByChFld(CH0, FLD_PAC)) + inv2->getValue(inv2->getPosByChFld(CH0, FLD_PAC));
-    if (f > 1000)
-        sprintf_P(&buf[0], PSTR("%.0f"), f);
-    else
-        sprintf_P(&buf[0], PSTR("%.1f"), f);
-    gfx->drawString(180, 220, buf);
-
-    // Unterste Reihe Ertrag Tag/Total
-    gfx->setColor(MINI_WHITE);
-    gfx->setFont(ArialRoundedMTBold_14);
-    gfx->drawString(60, 265, "Ertrag Tag [Wh]");
-    gfx->drawString(180, 265, "Ertrag [kWh]");
-    gfx->setFont(ArialRoundedMTBold_36);
-    f = inv1->getValue(inv1->getPosByChFld(CH0, FLD_YD)) + inv2->getValue(inv2->getPosByChFld(CH0, FLD_YD));
-
-    sprintf_P(&buf[0], PSTR("%.0f"), f);
-    gfx->drawString(60, 280, buf);
-    f = inv1->getValue(inv1->getPosByChFld(CH0, FLD_YT)) + inv2->getValue(inv2->getPosByChFld(CH0, FLD_YT));
-    sprintf_P(&buf[0], PSTR("%.1f"), f);
-    gfx->drawString(180, 280, buf);
-
-    gfx->setTextAlignment(TEXT_ALIGN_LEFT);
-    gfx->setFont(ArialMT_Plain_10);
-    gfx->setColor(MINI_WHITE);
-    if (!buttonBounce->read())
-        gfx->drawString(0, 9, "Taste");
-
-    commitDisplay();
-}
-#endif

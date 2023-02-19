@@ -4,7 +4,9 @@
 // Applicatiom
 #include "app.h"
 
-#if defined(ENV_KER) || defined(ENV_STR)
+app myApp;
+
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 // RF24 Radio
 #include <SPI.h>
 #include <CircularBuffer.h>
@@ -13,27 +15,10 @@
 #include "peripherals.h"
 #include "hm_crc.h"
 #include "hm_radio.h"
-#endif
 
-app myApp;
-
-#if defined(ENV_KER) || defined(ENV_STR)
-// RF24 Radio
 static RF24 radio(RF1_CE_PIN, RF1_CS_PIN);
 // Hoymiles packets instance
 HM_Radio hmRadio(&radio);
-
-#if defined(ENV_KER)
-#define INV1_SERIAL ((uint64_t)0x116181672101ULL) // 116181672101 = Norbert HM-1500
-//#define INV1_SERIAL ((uint64_t)0x116181670977ULL) // 116181670977 = Treckerschuppen HM-1500
-#endif
-#if defined(ENV_STR)
-#define INV1_SERIAL ((uint64_t)0x114173104619ULL) // 114173104619 = Gartenhütte FR 1
-#define INV2_SERIAL ((uint64_t)0x114173104439ULL) // 114173104439 = Gartenhütte FR 2
-
-//#define INV1_SERIAL ((uint64_t)0x114173104924ULL) // 114173104619 = Gartenhütte STR 1
-//#define INV2_SERIAL ((uint64_t)0x114173105307ULL) // 114173104439 = Gartenhütte STR 2
-#endif
 
 static IRAM_ATTR void handleNrf1Irq()
 {
@@ -48,15 +33,6 @@ static void DumpConfig()
 	Serial.println("");
 }
 
-static void DumpMenu()
-{
-	Serial.println("Console menu");
-	Serial.println("============\n");
-	Serial.println("c = Print RF24 module config");
-	Serial.println("r = Reset module");
-	Serial.println("t = Toggle RF24 traffic debug output");
-}
-
 static void activateConf(void)
 {
 	// Attach interrupt handler to NRF IRQ output. Overwrites any earlier handler.
@@ -67,9 +43,19 @@ static void activateConf(void)
 #endif
 
 //-----------------------------------------------------------------------------
-// ICACHE_RAM_ATTR void handleIntr(void) {
 
-// }
+static void DumpMenu()
+{
+	Serial.println("Console menu");
+	Serial.println("============\n");
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
+	Serial.println("c = Print RF24 module config");
+#endif
+	Serial.println("r = Reset module");
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
+	Serial.println("t = Toggle RF24 traffic debug output");
+#endif	
+}
 
 //-----------------------------------------------------------------------------
 void setup()
@@ -79,14 +65,20 @@ void setup()
 
 	myApp.setup();
 
-#if defined(ENV_KER) || defined(ENV_STR)
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 	// Configure nRF IRQ input
 	pinMode(RF1_IRQ_PIN, INPUT);
 
 	// Add inverter instances - check HM_MAXINVERTERINSTANCES in hm_config.h
 	bool res = hmRadio.AddInverterInstance(INV1_SERIAL);
-#if defined(ENV_STR)
+#if (NUMBER_OF_INVERTERS > 1)
 	res = hmRadio.AddInverterInstance(INV2_SERIAL);
+#if (NUMBER_OF_INVERTERS > 2)
+	res = hmRadio.AddInverterInstance(INV3_SERIAL);
+#if (NUMBER_OF_INVERTERS > 3)
+	res = hmRadio.AddInverterInstance(INV4_SERIAL);
+#endif
+#endif
 #endif
 	if (!res)
 	{
@@ -108,14 +100,17 @@ void setup()
 void loop()
 {
 	static bool bHMTransmitting = false;
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 	static bool bDumpRFData = false;
+#endif
 
 	myApp.loop(bHMTransmitting);
 
-#if defined(ENV_KER) || defined(ENV_STR)
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 	// Cyclic communication processing
 	hmRadio.SetUnixTimeStamp(myApp.getUnixTimeStamp());
 	bHMTransmitting = hmRadio.Cyclic();
+#endif
 
 	// Config info
 	if (Serial.available())
@@ -126,28 +121,26 @@ void loop()
 		{
 			DumpMenu();
 		}
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 		else if (cmd == 'c')
 		{
 			DumpConfig();
 		}
+#endif
 		else if (cmd == 'r')
 		{
 			DBG_PRINTF(DBG_PSTR("Resetting..."));
 			delay(200);
 			ESP.reset();
 		}
+#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
 		else if (cmd == 't')
 		{
 			bDumpRFData = !bDumpRFData;
 			hmRadio.DumpRFData(bDumpRFData);
 		}
-	}
 #endif
-
-	//    digitalWrite(LED_BUILTIN, LOW);
-	//   delay(500);
-	// digitalWrite(LED_BUILTIN, HIGH);
-	// delay(500);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

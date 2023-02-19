@@ -49,11 +49,19 @@
 
 #define SUNSET_ENABLED    true      // Enables sunset calculation
 
-#define SUNSET_LATITUDE   "53.2197" // Latitude - Your location to be used with sunrise and sunset
-#define SUNSET_LONGITUDE  "7.98004" // Longitude - Your location to be used with sunrise and sunset
+#define SUNSET_LATITUDE   "50.941291" // Latitude - Your location to be used with sunrise and sunset
+#define SUNSET_LONGITUDE  "6.95828" // Longitude - Your location to be used with sunrise and sunset
 
 #define SUNSET_SUNRISEOFFSET -15    // Offset in minutes to be addded to calculated sunrise time
 #define SUNSET_SUNSETOFFSET 15      // Offset in minutes to be addded to calculated sunset time
+
+#define NUMBER_OF_INVERTERS 1       // Amount of Hoymiles inverters to be processed
+#define INV1_SERIAL ((uint64_t)0x116181542101ULL)  // 116181542101 = Inverter serial number
+
+#define HTTP_REQUEST_INTERVALL 5000 // Http Request intervall for requesting data from HTTP source
+
+#define HTTP_RESPONSE_TIMEOUT 20000 // HTTP Response timeout to indicate missing responses
+
 
 #if __has_include("user_config_override.h")
   #include "user_config_override.h"              // Configuration overrides for my_user_config.h

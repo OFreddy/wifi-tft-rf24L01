@@ -60,7 +60,6 @@ private:
     IPAddress mHttpServerIP;
     uint32_t mHttpReqTicker;
     uint16_t mHttpReqInterval;
-    uint32_t lastHttpResponse;
 
     // Button
     Bounce2::Button *buttonBounce = NULL;
@@ -72,30 +71,6 @@ private:
     // TFT Display
     ILI9341_SPI *tft;
     MiniGrafx *gfx;
-
-// Data
-#if defined(ENV_FRI) 
-    float gridPower;
-    float solarPower;
-    float solar1Power;
-    float solar2Power;
-    float solar3Power;
-    float solarTotalEnergy;
-    float solarTotalEnergyResolved;
-    uint8_t garagePosOpen, garagePosClose;
-    float outsideTemp;
-#endif
-#if defined(ENV_DEM)
-    int StatusSNS_ENERGY_Power;
-    float StatusSNS_ENERGY_Today;
-    float StatusSNS_ENERGY_Yesterday;
-    float StatusSNS_ENERGY_Total;
-    int StatusSNS_ENERGY_Voltage;
-#endif
-
-#if defined(ENV_STR)
-    float StatusSNS_ENERGY_Total;
-#endif
 
     // General
     void cyclicTick(void);

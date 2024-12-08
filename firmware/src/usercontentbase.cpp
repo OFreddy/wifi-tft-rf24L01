@@ -13,6 +13,7 @@ usercontentbase::usercontentbase(/* args */)
 {
     // http client
     mHttpReq = new AsyncHTTPRequest();
+    mHttpReq->setDebug(false);
     mHttpReq->onReadyStateChange(httpRequestCb, this);
 }
 

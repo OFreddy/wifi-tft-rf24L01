@@ -58,9 +58,9 @@
 #define NUMBER_OF_INVERTERS 1       // Amount of Hoymiles inverters to be processed
 #define INV1_SERIAL ((uint64_t)0x116181542101ULL)  // 116181542101 = Inverter serial number
 
-#define HTTP_REQUEST_INTERVALL 5000 // Http Request intervall for requesting data from HTTP source
+#define HTTP_REQUEST_INTERVALL 2000 // Http Request intervall for requesting data from HTTP source
 
-#define HTTP_RESPONSE_TIMEOUT 20000 // HTTP Response timeout to indicate missing responses
+#define HTTP_RESPONSE_TIMEOUT 30000 // HTTP Response timeout to indicate missing responses
 
 
 #if __has_include("user_config_override.h")

@@ -56,9 +56,10 @@ private:
 
     // Http Service
     AsyncHTTPRequest *mHttpReq;
+    Ticker *mHttpReqTicker;
 
     IPAddress mHttpServerIP;
-    uint32_t mHttpReqTicker;
+    uint32_t mHttpReqTick;
     uint16_t mHttpReqInterval;
 
     // Button
@@ -74,6 +75,7 @@ private:
 
     // General
     void cyclicTick(void);
+    void httpReqTick(void);
 
     // Web sites
     web *mWebInst;

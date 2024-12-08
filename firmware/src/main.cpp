@@ -61,7 +61,7 @@ static void DumpMenu()
 void setup()
 {
 	Serial.begin(SERIAL_BAUDRATE);
-	Serial.printf_P(PSTR("\n\n------------------------------------------\nWifiDisplay starting...\n"));
+	Serial.println(F("\n\n------------------------------------------\nWifiDisplay starting...\n"));
 
 	myApp.setup();
 

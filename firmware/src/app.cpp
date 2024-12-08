@@ -8,12 +8,6 @@
 
 #include "ms_ticker.h"
 
-#if defined(NUMBER_OF_INVERTERS) && (NUMBER_OF_INVERTERS > 0)
-#include "hm_radio.h"
-#include "hm_inverter.h"
-extern HM_Radio hmRadio;
-#endif
-
 #include "config.h"
 #include "network.h"
 #include <time.h>
@@ -41,7 +35,6 @@ const String MONTH_NAMES[] = {"JAN", "FEB", "MÄR", "APR", "MAI", "JUN", "JUL", 
 #define TFT_MOSI D7
 #define TFT_CS D0 // RF and TFT Board
 #define TFT_DC D2
-
 
 // defines the colors usable in the paletted 16 color frame buffer
 uint16_t palette[] = {ILI9341_BLACK, // 0
@@ -113,17 +106,17 @@ void app::setup()
     ConfigInst.read();
 
     // Configure timezone
-    DBG_PRINTF(DBG_PSTR("Configuring timezone %s (%s)...\n"), 
-        (char*)&ConfigInst.get().Ntp_TimezoneDescr, getTzInfo(ConfigInst.get().Ntp_TimezoneDescr).c_str());
+    DBG_PRINTF(DBG_PSTR("Configuring timezone %s (%s)...\n"),
+               (char *)&ConfigInst.get().Ntp_TimezoneDescr, getTzInfo(ConfigInst.get().Ntp_TimezoneDescr).c_str());
     configTime(getTzInfo(ConfigInst.get().Ntp_TimezoneDescr).c_str(), ConfigInst.get().Ntp_Server);
 
     // Network instance
     NetworkInst.setup();
 
     // Button
-    buttonBounce = new Bounce2::Button();
-    buttonBounce->attach(BUTTON_PIN, INPUT_PULLUP); // USE INTERNAL PULL-UP
-    buttonBounce->interval(20);
+    //buttonBounce = new Bounce2::Button();
+    //buttonBounce->attach(BUTTON_PIN, INPUT_PULLUP); // USE INTERNAL PULL-UP
+    //buttonBounce->interval(20);
 
 #if defined(LCD_PWR_PIN)
     pinMode(LCD_PWR_PIN, OUTPUT);    // sets the pin as output
@@ -154,6 +147,10 @@ void app::setup()
 
     DBG_PRINTF(DBG_PSTR("Heap after HTTPReq server: %6d bytes\n"), ESP.getFreeHeap());
 
+    mHttpReqTicker = new Ticker();
+    mHttpReqTicker->attach_ms_scheduled(mHttpReqInterval, [this]()
+                                        {  this->httpReqTick(); });
+
     // Sunset / dawn calculation
     SunsetClassInst.init();
 
@@ -171,7 +168,7 @@ void app::setup()
 void app::loop(bool bDisableUpdate)
 {
     // Update button
-    buttonBounce->update();
+    //buttonBounce->update();
 
     // Control display
     controlDisplay();
@@ -187,9 +184,9 @@ void app::loop(bool bDisableUpdate)
 
     if (NetworkInst.IsConnected())
     {
-        if (checkTicker(&mHttpReqTicker, mHttpReqInterval))
+        if (checkTicker(&mHttpReqTick, mHttpReqInterval))
         {
-            getHttpData();
+            // getHttpData();
         }
     }
 
@@ -197,7 +194,7 @@ void app::loop(bool bDisableUpdate)
     static uint32_t displayTick = 0;
     if (checkTicker(&displayTick, 1000))
     {
-        if(NetworkInst.IsConnected())
+        if (NetworkInst.IsConnected())
         {
             updateDisplay();
         }
@@ -242,6 +239,16 @@ void app::cyclicTick(void)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void app::httpReqTick(void)
+{
+    if (NetworkInst.IsConnected())
+    {
+        getHttpData();
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Progress bar helper
 void app::drawProgress(uint8_t percentage, String text)
 {
@@ -271,12 +278,12 @@ void app::controlDisplay(void)
 
     int minPastMidnght = timeinfo->tm_hour * 60 + timeinfo->tm_min;
 
-    if (!buttonBounce->read())
-        displayDelay = millis() + 30000;
+    //if (!buttonBounce->read())
+      //  displayDelay = millis() + 30000;
 
     int sunrise = SunsetClassInst.getSunriseMinutes();
     int sunset = SunsetClassInst.getSunsetMinutes();
-    displayOn = (sunrise <= 0) || (sunset <= 0) || ((minPastMidnght >= sunrise) && (minPastMidnght <= sunset)) || (displayDelay > millis());
+    displayOn = (sunrise <= 0) || (sunset <= 0) || ((minPastMidnght >= sunrise) /* && (minPastMidnght <= sunset)*/) || (displayDelay > millis());
 
     if (displayOn && !displayState)
     {                                    // Turn on
@@ -300,7 +307,6 @@ void app::controlDisplay(void)
 
 void app::httpRequestCb(void *optParm, AsyncHTTPRequest *request, int readyState)
 {
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -403,10 +409,10 @@ void app::updateDisplay(void)
     UserContentInst.drawDisplayContent(gfx);
 
     // Key press for debugging purposes
-    gfx->setFont(ArialMT_Plain_10);
-    gfx->setColor(MINI_WHITE);
-    if (!buttonBounce->read())
-        gfx->drawString(0, 9, "Taste");
+    //gfx->setFont(ArialMT_Plain_10);
+    //gfx->setColor(MINI_WHITE);
+    //if (!buttonBounce->read())
+      //  gfx->drawString(0, 9, "Taste");
 
     // Update display hardware
     commitDisplay();

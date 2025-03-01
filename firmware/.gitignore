@@ -10,10 +10,6 @@
 *-backups
 
 # Project files 
-user_config_override.h
-platformio_override.ini
-usercontent.h
-usercontent.cpp
 
 # Prerequisites
 *.d
